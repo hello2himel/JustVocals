@@ -10,7 +10,8 @@
     <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
     <!-- Favicon -->
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='res/favicon.png') }}">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+    <!-- Updated SocketIO to match backend version -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.5/socket.io.min.js"></script>
 
     <style>
         /* General Reset and Variables */
@@ -31,13 +32,12 @@
             --radius: 12px;
             --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
             --mono: 'SF Mono', Monaco, monospace;
-            --error-red: #ef4444; /* Define a red color for consistency */
+            --error-red: #ef4444;
             --error-red-hover: #dc2626;
-
-            /* New: Theme-adaptive variables for progress steps */
-            --progress-bg: #e0e0e0; /* Light grey for light theme steps background */
-            --progress-inactive-text: #6b7280; /* text-light for inactive steps */
-            --progress-completed-text: #4b5563; /* slightly darker grey for completed steps */
+            --progress-bg: #e0e0e0;
+            --progress-inactive-text: #6b7280;
+            --progress-completed-text: #4b5563;
+            --warning-orange: #f59e0b; /* Explicitly define warning color */
         }
 
         /* Dark Theme */
@@ -47,13 +47,12 @@
             --text-light: #9ca3af;
             --border: #374151;
             --shadow: 0 4px 6px -1px rgba(255,255,255,0.05), 0 2px 4px -2px rgba(255,255,255,0.05);
-            --error-red: #f87171; /* Lighter red for dark theme */
+            --error-red: #f87171;
             --error-red-hover: #ef4444;
-
-            /* New: Dark theme adaptive variables for progress steps */
-            --progress-bg: #1e1e1e; /* Dark grey for dark theme steps background */
-            --progress-inactive-text: #9ca3af; /* text-light for inactive steps in dark mode */
-            --progress-completed-text: #888; /* slightly lighter grey for completed steps in dark mode */
+            --progress-bg: #1e1e1e;
+            --progress-inactive-text: #9ca3af;
+            --progress-completed-text: #888;
+            --warning-orange: #f97316; /* Lighter orange for dark theme */
         }
 
         /* Body Styles */
@@ -70,27 +69,27 @@
 
         /* Container for content width */
         .container {
-            width: 100%; /* Default for small screens */
-            max-width: 720px; /* Tablet breakpoint */
+            width: 100%;
+            max-width: 720px;
             margin: 0 auto;
             padding: 0 24px;
         }
 
         @media (min-width: 768px) {
             .container {
-                max-width: 960px; /* Medium desktop */
+                max-width: 960px;
             }
         }
 
         @media (min-width: 1200px) {
             .container {
-                max-width: 1200px; /* Large desktop */
+                max-width: 1200px;
             }
         }
 
         /* Header Styles */
         header {
-            padding: 12px 0; /* Reduced from 16px */
+            padding: 12px 0;
             position: sticky;
             top: 0;
             background: var(--bg);
@@ -103,7 +102,6 @@
             align-items: center;
         }
 
-        /* Navbar inside header */
         header nav {
             display: flex;
             justify-content: space-between;
@@ -114,7 +112,7 @@
         header nav > div {
             display: flex;
             align-items: center;
-            gap: 10px; /* Space between logo and title, and between buttons */
+            gap: 10px;
         }
 
         .logo {
@@ -122,25 +120,23 @@
             width: auto;
         }
 
-        /* Make logo and title clickable as a single unit */
         .logo-title-link {
             display: flex;
             align-items: center;
             gap: 10px;
             text-decoration: none;
-            color: inherit; /* Inherit color from parent or default text color */
+            color: inherit;
             transition: opacity 0.2s ease;
         }
         .logo-title-link:hover {
             opacity: 0.8;
         }
 
-        /* Theme Toggle Button and other icon buttons */
         .header-buttons button {
             background: none;
             border: none;
             color: var(--text-light);
-            font-size: 20px; /* Make icons a bit larger */
+            font-size: 20px;
             padding: 8px;
             border-radius: var(--radius);
             transition: all 0.2s ease;
@@ -152,21 +148,20 @@
             color: var(--text);
         }
 
-        /* Specific style for icon-only buttons like Source Code */
         .icon-only-button {
-            width: 36px; /* Fixed width for consistent sizing */
-            height: 36px; /* Fixed height for consistent sizing */
+            width: 36px;
+            height: 36px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 20px; /* Icon size */
-            padding: 0; /* Remove padding */
+            font-size: 20px;
+            padding: 0;
         }
 
         /* Main Content Area */
         main {
             flex: 1;
-            padding: 32px 0; /* Reduced from 48px */
+            padding: 32px 0;
         }
 
         /* Progress Steps UI */
@@ -196,7 +191,6 @@
             transition: all 0.25s ease;
             cursor: pointer;
             text-align: center;
-
             background: transparent;
             color: var(--progress-inactive-text);
             border: none;
@@ -231,31 +225,28 @@
             margin-left: 0.25rem;
         }
 
-        /* Media query for larger screens to restore larger padding/font-size */
         @media (min-width: 768px) {
             .step {
                 padding: 0.5rem 1.5rem;
                 font-size: 0.95rem;
                 gap: 0.5rem;
             }
-             .progress-steps {
+            .progress-steps {
                 gap: 1rem;
                 flex-wrap: nowrap;
             }
         }
 
-        /* Media Query for small screens: Hide icons from progress steps */
         @media (max-width: 640px) {
             .step .step-icon,
             .tick-badge {
-                display: none; /* Hide icons and tick badge on small screens */
+                display: none;
             }
             .step {
-                justify-content: center; /* Re-center text if icons are removed */
-                gap: 0; /* Remove gap if icons are gone */
+                justify-content: center;
+                gap: 0;
             }
         }
-
 
         /* Step Content Sections as Cards */
         .step-content {
@@ -279,32 +270,25 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            /* Allow content to wrap if it exceeds width */
             flex-wrap: wrap;
-            gap: 10px; /* Gap between stacked items when wrapped */
+            gap: 10px;
         }
 
-        /* Group for the step number and title */
         .step-content .card-header .step-title-group {
             display: flex;
             align-items: center;
             gap: 10px;
-            /* Allow title group to shrink but don't force it to take full width */
             flex-shrink: 1;
         }
 
-        /* Container for action buttons on the right */
         .card-header-actions {
             display: flex;
             align-items: center;
-            gap: 10px; /* Space between the spinner and buttons */
-            /* Push to the right on larger screens */
+            gap: 10px;
             margin-left: auto;
-            flex-shrink: 0; /* Prevent from shrinking on large screens */
+            flex-shrink: 0;
         }
 
-
-        /* Styling for the step indicator within the card header */
         .step-content .card-header .step-indicator {
             background-color: var(--accent);
             color: white;
@@ -319,11 +303,9 @@
             text-align: center;
         }
 
-
         .step-content .card-body {
             padding: 16px;
         }
-
 
         /* Headings */
         h2 {
@@ -499,7 +481,6 @@
             cursor: not-allowed;
         }
 
-        /* Abort Button specific style */
         .abort-btn {
             background-color: var(--error-red);
             color: white;
@@ -514,7 +495,6 @@
             background-color: var(--error-red-hover);
             border-color: var(--error-red-hover);
         }
-
 
         /* Progress Bar */
         .progress-bar-container {
@@ -550,7 +530,8 @@
             overflow-y: auto;
             background: rgba(0,0,0,0.02);
             font-family: var(--mono);
-            font-size: 14px;
+            font-size: 13px; /* Slightly smaller for denser logs */
+            line-height: 1.4; /* Tighter line spacing */
         }
 
         [data-theme="dark"] .log-container {
@@ -560,6 +541,7 @@
         .log-entry {
             padding: 4px 0;
             border-bottom: 1px solid transparent;
+            word-break: break-word; /* Ensure long messages wrap */
         }
 
         .log-entry:not(:last-child) {
@@ -568,9 +550,8 @@
 
         .log-entry.error { color: var(--error-red); }
         .log-entry.success { color: var(--accent); }
+        .log-entry.warning { color: var(--warning-orange); }
         .log-entry.muted { color: var(--text-light); }
-        .log-entry.warning { color: #f59e0b; }
-
 
         /* Audio Results Container */
         .audio-container-item {
@@ -580,8 +561,8 @@
             border-radius: var(--radius);
             background: rgba(0,0,0,0.01);
             display: flex;
-            flex-direction: column; /* Changed to column for stacking content within */
-            gap: 10px; /* Space between header and audio element */
+            flex-direction: column;
+            gap: 10px;
             align-items: flex-start;
         }
 
@@ -589,22 +570,21 @@
             background: rgba(255,255,255,0.01);
         }
 
-        /* Header for each audio item, to hold title and individual download button */
         .audio-item-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            width: 100%; /* Take full width of its parent (.audio-container-item) */
-            margin-bottom: 5px; /* Small space before the audio player */
+            width: 100%;
+            margin-bottom: 5px;
         }
 
         .audio-container-item h4 {
-            margin-bottom: 0; /* Remove default h4 margin-bottom */
+            margin-bottom: 0;
             font-size: 16px;
             font-weight: 600;
-            flex-grow: 1; /* Allow title to take available space */
-            margin-right: 10px; /* Space between title and button */
-            word-break: break-word; /* Ensure long titles wrap */
+            flex-grow: 1;
+            margin-right: 10px;
+            word-break: break-word;
         }
 
         audio {
@@ -621,24 +601,20 @@
             display: inline-flex;
             align-items: center;
             gap: 8px;
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: var(--radius);
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             transition: all 0.2s ease;
-            /* Adjust individual download button for its new context */
-            padding: 6px 12px; /* Slightly smaller padding */
-            font-size: 13px; /* Slightly smaller font size */
-            flex-shrink: 0; /* Prevent button from shrinking */
+            flex-shrink: 0;
         }
 
         .download-btn:hover {
             background: var(--accent-hover);
         }
 
-        /* Download All button specific style */
         .download-all-btn {
-            background: #3498db; /* A blue color for distinction */
+            background: #3498db;
             color: white;
             border: none;
             text-decoration: none;
@@ -650,16 +626,15 @@
             font-size: 15px;
             font-weight: 500;
             transition: all 0.2s ease;
-            width: auto; /* Allow button to size to content */
-            justify-content: center; /* Center content within button */
-            cursor: pointer; /* Ensure it looks clickable */
+            width: auto;
+            justify-content: center;
+            cursor: pointer;
         }
 
         .download-all-btn:hover {
-            background: #2980b9; /* Darker blue on hover */
+            background: #2980b9;
             box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
         }
-
 
         /* Footer */
         footer {
@@ -681,6 +656,13 @@
             text-decoration: underline;
         }
 
+        .session-id {
+            font-family: var(--mono);
+            display: inline-block;
+            margin-top: 8px;
+            color: var(--text);
+        }
+
         /* Utility Classes */
         .muted {
             color: var(--text-light);
@@ -692,7 +674,7 @@
         }
 
         .error {
-            color: #ef4444;
+            color: var(--error-red);
         }
 
         /* Custom Message Box for Alerts */
@@ -740,7 +722,7 @@
             border-radius: var(--radius);
             box-shadow: var(--shadow);
             padding: 25px;
-            z-index: 1001; /* Above message-box */
+            z-index: 1001;
             display: flex;
             flex-direction: column;
             gap: 20px;
@@ -761,13 +743,12 @@
         }
 
         .confirmation-dialog .dialog-buttons button {
-            flex: 1; /* Equal width buttons */
+            flex: 1;
             padding: 10px 15px;
             font-size: 1rem;
             font-weight: 600;
         }
 
-        /* Specific styles for confirmation dialog buttons */
         .confirmation-dialog #confirm-abort-btn {
             background-color: var(--error-red);
             border-color: var(--error-red);
@@ -828,7 +809,6 @@
             max-width: 720px;
         }
 
-        /* Responsive adjustments for app-divider based on container breakpoints */
         @media (min-width: 768px) {
             .app-divider {
                 max-width: 960px;
@@ -888,32 +868,30 @@
             box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
         }
 
-        /* Media Query for Mobile Layout (Card Header) */
-        @media (max-width: 640px) { /* Adjust breakpoint as needed, 640px is a common 'sm' breakpoint */
+        @media (max-width: 640px) {
             .step-content .card-header {
-                flex-direction: column; /* Stack items vertically */
-                align-items: center; /* Center items horizontally in the column */
-                justify-content: center; /* Center the column itself if possible */
-                text-align: center; /* Ensure text within the header is centered */
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                text-align: center;
             }
 
             .step-content .card-header .step-title-group {
-                width: 100%; /* Take full width to allow internal centering */
-                justify-content: center; /* Center the step indicator and text within their group */
-                margin-bottom: 10px; /* Add some space below the title when stacked */
+                width: 100%;
+                justify-content: center;
+                margin-bottom: 10px;
             }
 
             .card-header-actions {
-                width: 100%; /* Take full width when stacked */
-                justify-content: center; /* Center buttons within their container */
-                margin-left: 0; /* Remove auto-margin that pushes to right on larger screens */
+                width: 100%;
+                justify-content: center;
+                margin-left: 0;
             }
 
-            /* Ensure individual buttons inside card-header-actions can also center if there's only one */
             .card-header-actions > .processing-spinner,
             .card-header-actions > .abort-btn,
             .card-header-actions > .download-all-btn {
-                margin: 0 auto; /* Center individual items if they become the sole item in their flex container */
+                margin: 0 auto;
             }
         }
     </style>
@@ -927,25 +905,20 @@
                     <h1>JustVocals</h1>
                 </a>
                 <div class="header-buttons">
-                    <!-- Source Code button with icon only -->
                     <button title="Source Code" class="icon-only-button"><i class="ri-code-s-slash-fill"></i></button>
-                    <!-- Donate button removed from top navbar -->
                     <button id="theme-toggle" aria-label="Toggle theme" class="icon-only-button"><i class="ri-sun-fill" id="theme-icon"></i></button>
                 </div>
             </nav>
         </div>
-        <!-- Horizontal line below the header, not full width -->
         <hr class="app-divider">
     </header>
 
     <main class="container">
-        <!-- Custom Message Box -->
         <div id="message-box" class="message-box" style="display:none;">
             <p id="message-text"></p>
             <button id="message-close-btn">X</button>
         </div>
 
-        <!-- Custom Confirmation Dialog -->
         <div id="confirmation-overlay" class="overlay" style="display:none;"></div>
         <div id="confirmation-dialog" class="confirmation-dialog" style="display:none;">
             <p>Are you sure you want to stop the current process?</p>
@@ -981,7 +954,7 @@
                         <label for="audio_file">Or Upload Audio</label>
                         <div class="drop-zone" id="drop-zone">
                             <p>Drop your audio file here or <button type="button" id="upload-btn">choose file</button></p>
-                            <input type="file" id="audio_file" name="audio_file" accept=".mp3,.wav" hidden> <!-- Added name="audio_file" -->
+                            <input type="file" id="audio_file" name="audio_file" accept=".mp3,.wav" hidden>
                             <div id="file-info"></div>
                         </div>
                     </div>
@@ -1050,7 +1023,6 @@
                     <span>Results</span>
                 </div>
                 <div class="card-header-actions">
-                    <!-- Download All button moved here, initially hidden -->
                     <a href="#" id="download-all-button" class="download-all-btn" style="display:none;">
                         <i class="ri-folder-zip-line" aria-hidden="true"></i><span>Download All</span>
                     </a>
@@ -1065,7 +1037,7 @@
                     <h3>Support Our Open Source Project</h3>
                     <p>Vocals is a Free and Open Source Software (FOSS) project, proudly maintained by hobbyist developers like @hello2himel. We dedicate our time and resources to provide this tool for free, but hosting, development, and ongoing improvements come with costs.</p>
                     <p>If you find Vocals useful, please consider supporting our work with a small donation. Your contribution helps keep this project alive and allows us to continue building and improving. Every bit helps!</p>
-                    <a href="https://ko-fi.com/hello2himel" target="_blank" class="donate-button-large">
+                    <a href="#" id="donate-button" class="donate-button-large">
                         <i class="ri-heart-fill"></i> Support by donating
                     </a>
                 </div>
@@ -1074,16 +1046,31 @@
     </main>
 
     <footer>
-        <!-- Horizontal line above the footer content, not full width -->
         <hr class="app-divider">
         <div class="container">
             <p>This FOSS software is proudly built in Bangladesh 🇧🇩 by <a href="https://github.com/hello2himel" target="_blank">@hello2himel</a></p>
+            <div class="session-id">{{ session_id }}</div>
         </div>
     </footer>
 
     <script>
         // Global flag to track if processing is active
         let isProcessingActive = false;
+        // Log queue and rendering state for debouncing
+        let logQueue = [];
+        let isRenderingLogs = false;
+        const MAX_LOG_ENTRIES = 100; // Limit to prevent DOM bloat
+        // Store session ID from template
+        const sessionId = "{{ session_id | safe }}";
+
+        // Update donate button URL with source and session_id
+        function updateDonateButton() {
+            const donateButton = document.getElementById('donate-button');
+            const donateUrl = new URL('https://hello2himel.netlify.app/donate');
+            donateUrl.searchParams.set('source', 'justvocals');
+            donateUrl.searchParams.set('session_id', sessionId);
+            donateButton.href = donateUrl.toString();
+        }
 
         // Custom Message Box Functions
         function showMessage(message, type = 'error') {
@@ -1092,7 +1079,6 @@
             msgText.textContent = message;
             msgBox.className = `message-box ${type === 'success' ? 'success-msg' : ''}`;
             msgBox.style.display = 'flex';
-            // Error messages now persist until user interaction (explicitly hidden by other events)
             if (type !== 'error') {
                 setTimeout(hideMessage, 5000);
             }
@@ -1104,14 +1090,12 @@
 
         document.getElementById('message-close-btn').addEventListener('click', hideMessage);
 
-
         // Theme handling
         const themeToggle = document.getElementById('theme-toggle');
         const themeIcon = document.getElementById('theme-icon');
         const savedTheme = localStorage.getItem('theme') ||
             (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
-        // Function to update the theme and icon
         function applyTheme(theme) {
             document.documentElement.setAttribute('data-theme', theme);
             localStorage.setItem('theme', theme);
@@ -1119,7 +1103,6 @@
             themeIcon.classList.toggle('ri-moon-fill', theme === 'dark');
         }
 
-        // Apply theme on initial load
         applyTheme(savedTheme);
 
         themeToggle.addEventListener('click', () => {
@@ -1130,38 +1113,35 @@
         // Step management
         const steps = document.querySelectorAll('.step');
         const stepContents = document.querySelectorAll('.step-content');
-        const downloadAllButton = document.getElementById('download-all-button'); // Get the new button element
-        const abortButton = document.getElementById('abort-btn'); // Get the abort button
+        const downloadAllButton = document.getElementById('download-all-button');
+        const abortButton = document.getElementById('abort-btn');
 
-        // Text labels for each step
         const stepLabels = ['Select Audio', 'Processing', 'Results'];
-        // Icons for each step (Remixicon classes)
         const stepIcons = ['ri-file-music-line', 'ri-loader-4-line ri-spin', 'ri-check-line'];
 
         function setActiveStep(num) {
             steps.forEach((step, i) => {
-                step.classList.remove('active', 'completed'); // Clear all state classes
-                step.innerHTML = ''; // Clear previous content (icon, text, tick)
-
+                step.classList.remove('active', 'completed');
+                step.innerHTML = '';
                 const textSpan = document.createElement('span');
                 textSpan.textContent = stepLabels[i];
 
-                if (i + 1 === num) { // Active step
+                if (i + 1 === num) {
                     step.classList.add('active');
                     const icon = document.createElement('i');
                     icon.className = `step-icon ${stepIcons[i]}`;
                     step.appendChild(icon);
                     step.appendChild(textSpan);
-                } else if (i + 1 < num) { // Completed step
+                } else if (i + 1 < num) {
                     step.classList.add('completed');
-                    step.appendChild(textSpan); // Text first
+                    step.appendChild(textSpan);
                     const tickBadge = document.createElement('span');
                     tickBadge.className = 'tick-badge';
-                    tickBadge.innerHTML = '&#10003;'; // Checkmark character
+                    tickBadge.innerHTML = '✓';
                     step.appendChild(tickBadge);
-                } else { // Inactive (future) step
+                } else {
                     const icon = document.createElement('i');
-                    icon.className = `step-icon ${stepIcons[i].replace(' ri-spin', '')}`; // No spin for future steps
+                    icon.className = `step-icon ${stepIcons[i].replace(' ri-spin', '')}`;
                     step.appendChild(icon);
                     step.appendChild(textSpan);
                 }
@@ -1170,18 +1150,15 @@
             stepContents.forEach((content, i) => {
                 content.classList.toggle('active', i + 1 === num);
             });
-            window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top on step change
+            window.scrollTo({ top: 0, behavior: 'smooth' });
 
-            // Hide download all button if not on step 3
             if (num !== 3) {
-                 downloadAllButton.style.display = 'none';
+                downloadAllButton.style.display = 'none';
             }
-            // Hide abort button if not on step 2
             if (num !== 2) {
                 abortButton.style.display = 'none';
             }
 
-            // Clear error borders when navigating to step 1
             if (num === 1) {
                 linkInput.classList.remove('error-border');
                 fileInput.classList.remove('error-border');
@@ -1195,13 +1172,10 @@
         const fileInfo = document.getElementById('file-info');
         const linkInput = document.getElementById('link');
 
-        // State variable to track if the selected file is valid (type and size)
         let isFileSelectedValid = false;
 
-        // Click handler for custom upload button
         uploadBtn.addEventListener('click', () => fileInput.click());
 
-        // Drag and Drop handlers
         dropZone.addEventListener('dragover', e => {
             e.preventDefault();
             dropZone.classList.add('drag-over');
@@ -1219,7 +1193,6 @@
             }
         });
 
-        // File input change handler (simplified)
         fileInput.addEventListener('change', () => {
             hideMessage();
             fileInput.classList.remove('error-border');
@@ -1236,7 +1209,7 @@
 
         function handleFile(file) {
             const validTypes = ['audio/mpeg', 'audio/wav'];
-            const maxSize = 100 * 1024 * 1024; // 100MB
+            const maxSize = 100 * 1024 * 1024;
             if (!validTypes.includes(file.type)) {
                 showMessage('Invalid file format. Please upload MP3 or WAV.', 'error');
                 fileInput.value = '';
@@ -1264,27 +1237,21 @@
             hideMessage();
         }
 
-        /**
-         * Handles input in the YouTube URL field. Clears file input if URL is entered.
-         */
         linkInput.addEventListener('input', () => {
-            hideMessage(); // Clear messages on input change
-            linkInput.classList.remove('error-border'); // Remove error border
-
+            hideMessage();
+            linkInput.classList.remove('error-border');
             if (linkInput.value.trim() !== '') {
-                fileInput.value = ''; // Clear the file input
-                fileInfo.textContent = ''; // Clear file info display
-                isFileSelectedValid = false; // Reset file valid state as link is now active
-                fileInput.removeAttribute('name'); // Remove name from file input
-                linkInput.setAttribute('name', 'link'); // Set name on link input
-                hideMessage(); // Hide any previous error messages
+                fileInput.value = '';
+                fileInfo.textContent = '';
+                isFileSelectedValid = false;
+                fileInput.removeAttribute('name');
+                linkInput.setAttribute('name', 'link');
+                hideMessage();
             } else {
-                // If link input is cleared, reset to default state (file input active, link inactive for submission)
                 fileInput.setAttribute('name', 'audio_file');
                 linkInput.removeAttribute('name');
             }
         });
-
 
         // Range inputs update
         function updateThresholdValue(val) {
@@ -1326,50 +1293,91 @@
         const resultsContainer = document.getElementById('results-container');
         const progressBar = document.getElementById('progress-bar');
         const processingSpinner = document.getElementById('processing-spinner');
-        // downloadAllButton and abortButton are globally available
 
-        let isSubmitting = false; // Prevents multiple submissions
+        let isSubmitting = false;
+
+        // Format timestamp for logs
+        function formatTimestamp() {
+            return new Date().toLocaleTimeString('en-US', {
+                hour12: false,
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        }
+
+        // Debounced log rendering
+        function renderLogs() {
+            if (isRenderingLogs || logQueue.length === 0) return;
+            isRenderingLogs = true;
+
+            const logContainer = document.getElementById('log-container');
+            while (logQueue.length > 0) {
+                const data = logQueue.shift();
+                const logEntry = document.createElement('div');
+                logEntry.className = `log-entry ${data.type === 'error' ? 'error' : data.type === 'success' ? 'success' : data.type === 'warning' ? 'warning' : 'muted'}`;
+                logEntry.textContent = `[${formatTimestamp()}] ${data.message}`;
+                logContainer.appendChild(logEntry);
+                // Limit log entries to prevent DOM bloat
+                while (logContainer.children.length > MAX_LOG_ENTRIES) {
+                    logContainer.removeChild(logContainer.firstChild);
+                }
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+
+            setTimeout(() => {
+                isRenderingLogs = false;
+                if (logQueue.length > 0) renderLogs();
+            }, 100); // Debounce interval of 100ms
+        }
 
         // Socket.IO event handlers
+        socket.on('connect', () => {
+            console.log('Socket.IO connected');
+            logQueue.push({ message: 'Connected to server', type: 'success' });
+            renderLogs();
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Socket.IO disconnected');
+            logQueue.push({ message: 'Disconnected from server', type: 'warning' });
+            renderLogs();
+        });
+
         socket.on('log_message', function(data) {
-            console.log("Log Message:", data); // DEBUG
-            const logEntry = document.createElement('div');
-            logEntry.className = `log-entry ${data.type === 'error' ? 'error' : data.type === 'success' ? 'success' : data.type === 'warning' ? 'warning' : 'muted'}`;
-            logEntry.textContent = `${new Date().toLocaleTimeString()} - ${data.message}`;
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
+            console.log("Log Message:", data);
+            logQueue.push(data);
+            renderLogs();
         });
 
         socket.on('progress_update', function(data) {
-            console.log("Progress Update:", data); // DEBUG
+            console.log("Progress Update:", data);
             const progressFill = progressBar.querySelector('.progress-fill');
             const progressText = progressBar.querySelector('.progress-text');
             progressBar.style.display = 'block';
             progressFill.style.width = `${data.progress}%`;
             progressText.textContent = `${data.stage || 'Processing'}: ${data.progress.toFixed(1)}%`;
 
-            // Simplified log update: always append a new log entry for progress updates
-            // This ensures every message is visible for debugging without complex logic.
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry muted'; // Progress updates are generally 'muted' info
-            logEntry.textContent = `${new Date().toLocaleTimeString()} - ${data.stage || 'Processing'}: ${data.progress.toFixed(1)}%`;
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
+            logQueue.push({
+                message: `${data.stage || 'Processing'}: ${data.progress.toFixed(1)}%`,
+                type: 'muted'
+            });
+            renderLogs();
         });
 
         socket.on('processing_complete', function(data) {
-            console.log("Processing complete event received!", data); // DEBUG: Crucial log
+            console.log("Processing complete event received!", data);
             isSubmitting = false;
-            isProcessingActive = false; // Processing is no longer active
+            isProcessingActive = false;
             mainBtn.disabled = false;
-            mainBtn.innerHTML = 'Extract Vocals'; // Reset button text
-            processingSpinner.style.display = 'none'; // Hide spinner
+            mainBtn.innerHTML = 'Extract Vocals';
+            processingSpinner.style.display = 'none';
             progressBar.style.display = 'none';
-            abortButton.style.display = 'none'; // Hide abort button
-            hideMessage(); // Hide any active messages
+            abortButton.style.display = 'none';
+            hideMessage();
 
             if (data.files && data.files.length) {
-                console.log("Files found in processing_complete data:", data.files); // DEBUG
+                console.log("Files found in processing_complete data:", data.files);
                 let filesHtml = data.files.map(file => `
                     <div class="audio-container-item">
                         <div class="audio-item-header">
@@ -1403,9 +1411,10 @@
                 setActiveStep(3);
                 showMessage('Processing complete! Your vocals are ready.', 'success');
                 history.pushState({step: 3, files: data.files}, 'Results', `?step=3&files=${encodeURIComponent(JSON.stringify(data.files))}`);
+                logQueue.push({ message: 'Processing completed successfully', type: 'success' });
+                renderLogs();
             } else {
-                console.log("No files or empty files array received in processing_complete:", data); // DEBUG
-                // If files are empty but `aborted` flag is true, show aborted message
+                console.log("No files or empty files array received in processing_complete:", data);
                 if (data.aborted) {
                     logContainer.innerHTML = '<div class="log-entry warning">Processing aborted by user.</div>';
                     showMessage('Processing was aborted.', 'warning');
@@ -1413,26 +1422,28 @@
                     logContainer.innerHTML = '<div class="log-entry error">No files processed.</div>';
                     showMessage('Processing completed but no output files were generated. Please try again.', 'error');
                 }
-                setActiveStep(1); // Go back to step 1
-                downloadAllButton.style.display = 'none'; // Ensure hidden if no files
+                setActiveStep(1);
+                downloadAllButton.style.display = 'none';
             }
         });
 
         socket.on('error', data => {
-            console.error("Error event received!", data); // DEBUG: Crucial log
+            console.error("Error event received!", data);
             isSubmitting = false;
-            isProcessingActive = false; // Processing is no longer active
-            mainBtn.disabled = false; // Re-enable button immediately
-            mainBtn.innerHTML = 'Extract Vocals'; // Reset button text
-            processingSpinner.style.display = 'none'; // Hide spinner
+            isProcessingActive = false;
+            mainBtn.disabled = false;
+            mainBtn.innerHTML = 'Extract Vocals';
+            processingSpinner.style.display = 'none';
             progressBar.style.display = 'none';
-            abortButton.style.display = 'none'; // Hide abort button
+            abortButton.style.display = 'none';
             logContainer.innerHTML = `<div class="log-entry error">${data.message || 'An unknown error occurred.'}</div>`;
             setActiveStep(1);
             showMessage(data.message || 'An error occurred during processing.', 'error');
             linkInput.classList.remove('error-border');
             fileInput.classList.remove('error-border');
-            downloadAllButton.style.display = 'none'; // Ensure hidden on error
+            downloadAllButton.style.display = 'none';
+            logQueue.push({ message: data.message || 'An error occurred during processing', type: 'error' });
+            renderLogs();
         });
 
         // Form submission handling
@@ -1451,7 +1462,6 @@
             const currentFile = fileInput.files[0];
             const youtubeUrlRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
 
-            // Pre-submission Validation
             if (linkValue && currentFile) {
                 showMessage('Please provide only one input: a YouTube URL or an audio file.', 'error');
                 return;
@@ -1466,22 +1476,22 @@
                 if (!youtubeUrlRegex.test(linkValue)) {
                     showMessage('Please provide a valid YouTube URL.', 'error');
                     linkInput.classList.add('error-border');
-                    return; // Do not proceed if validation fails
+                    return;
                 }
                 linkInput.setAttribute('name', 'link');
                 fileInput.removeAttribute('name');
             } else if (currentFile) {
                 const validTypes = ['audio/mpeg', 'audio/wav'];
-                const maxSize = 100 * 1024 * 1024; // 100MB
+                const maxSize = 100 * 1024 * 1024;
                 if (!validTypes.includes(currentFile.type)) {
                     showMessage('Invalid file format. Please upload MP3 or WAV.', 'error');
                     fileInput.classList.add('error-border');
                     fileInput.value = '';
                     fileInfo.textContent = '';
                     isFileSelectedValid = false;
-                    linkInput.setAttribute('name' , 'link');
+                    linkInput.setAttribute('name', 'link');
                     fileInput.removeAttribute('name');
-                    return; // Do not proceed
+                    return;
                 }
                 if (currentFile.size > maxSize) {
                     showMessage('File too large. Maximum size is 100MB.', 'error');
@@ -1491,21 +1501,19 @@
                     isFileSelectedValid = false;
                     linkInput.setAttribute('name', 'link');
                     fileInput.removeAttribute('name');
-                    return; // Do not proceed
+                    return;
                 }
                 isFileSelectedValid = true;
                 fileInput.setAttribute('name', 'audio_file');
                 linkInput.removeAttribute('name');
-            } else {
-                return; // Should not happen due to previous checks but good for safety
             }
 
             isSubmitting = true;
-            isProcessingActive = true; // Processing is now active
+            isProcessingActive = true;
             mainBtn.disabled = true;
             mainBtn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> Processing...';
             processingSpinner.style.display = 'inline-block';
-            abortButton.style.display = 'inline-flex'; // Show abort button
+            abortButton.style.display = 'inline-flex';
             setActiveStep(2);
             logContainer.innerHTML = '<div class="log-entry muted">Starting processing...</div>';
 
@@ -1517,24 +1525,21 @@
                 method: 'POST',
                 body: new FormData(form)
             }).then(response => {
-                minSilenceLenInput.value = originalMinSilenceLenValue; // Restore original value
+                minSilenceLenInput.value = originalMinSilenceLenValue;
                 if (!response.ok) {
-                    // Check if the response is JSON before parsing
                     const contentType = response.headers.get("content-type");
                     if (contentType && contentType.indexOf("application/json") !== -1) {
                         return response.json().then(errorData => {
                             throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
                         });
                     } else {
-                        // If not JSON, just throw a generic error
                         throw new Error(`HTTP error! status: ${response.status}`);
                     }
                 }
-                // If response is OK (204 No Content), no need to parse JSON.
             }).catch(err => {
                 console.error('Submission fetch error:', err);
                 socket.emit('error', { message: err.message || 'Submission failed. Please try again.' });
-                minSilenceLenInput.value = originalMinSilenceLenValue; // Restore original value on catch
+                minSilenceLenInput.value = originalMinSilenceLenValue;
             });
         });
 
@@ -1552,17 +1557,19 @@
         confirmAbortBtn.addEventListener('click', () => {
             socket.emit('abort_processing');
             isSubmitting = false;
-            isProcessingActive = false; // Processing is no longer active
+            isProcessingActive = false;
             mainBtn.disabled = false;
             mainBtn.innerHTML = 'Extract Vocals';
             processingSpinner.style.display = 'none';
             progressBar.style.display = 'none';
             abortButton.style.display = 'none';
             setActiveStep(1);
-            hideMessage(); // Hide any existing message
+            hideMessage();
             showMessage('Processing aborted successfully.', 'warning');
             confirmationDialog.style.display = 'none';
             confirmationOverlay.style.display = 'none';
+            logQueue.push({ message: 'Processing aborted by user', type: 'warning' });
+            renderLogs();
         });
 
         cancelAbortBtn.addEventListener('click', () => {
@@ -1573,14 +1580,11 @@
         // Confirmation before page close/refresh/back
         window.addEventListener('beforeunload', function (e) {
             if (isProcessingActive) {
-                // Cancel the event
                 e.preventDefault();
-                // Chrome requires returnValue to be set
                 e.returnValue = '';
                 return 'Processing is in progress. Are you sure you want to leave?';
             }
         });
-
 
         // Handle browser history for steps
         window.addEventListener('popstate', (event) => {
@@ -1589,7 +1593,7 @@
                 if (event.state.step === 3 && event.state.files) {
                     try {
                         const files = event.state.files;
-                        if (!Array.isArray(files)) { // Expect array of filenames
+                        if (!Array.isArray(files)) {
                             throw new Error('Invalid files data in history.');
                         }
                         let filesHtml = files.map(file => `
@@ -1626,16 +1630,16 @@
                         console.error("Failed to parse or validate history state files:", e);
                         setActiveStep(1);
                         showMessage('Invalid or corrupted results data from history. Please try again.', 'error');
-                        downloadAllButton.style.display = 'none'; // Hide on error
+                        downloadAllButton.style.display = 'none';
                     }
                 }
             } else {
                 setActiveStep(1);
-                downloadAllButton.style.display = 'none'; // Ensure hidden if not step 3
+                downloadAllButton.style.display = 'none';
             }
         });
 
-        // Initial load check for processed files (if coming from a redirect)
+        // Initial load check for processed files
         const urlParams = new URLSearchParams(window.location.search);
         const processedFilesParam = urlParams.get('files');
         const initialStepParam = urlParams.get('step');
@@ -1643,7 +1647,7 @@
         if (initialStepParam === '3' && processedFilesParam) {
             try {
                 const initialFiles = JSON.parse(decodeURIComponent(processedFilesParam));
-                if (!Array.isArray(initialFiles)) { // Expect array of filenames
+                if (!Array.isArray(initialFiles)) {
                     throw new Error('Invalid initial files data from URL.');
                 }
                 let filesHtml = initialFiles.map(file => `
@@ -1652,7 +1656,7 @@
                             <h4>${file}</h4>
                             <a href="/final_output/${encodeURIComponent(file)}" class="download-btn" download>
                                 <i class="ri-download-line" aria-hidden="true"></i> <span>Download</span>
-                                </a>
+                            </a>
                         </div>
                         <audio controls preload="metadata">
                             <source src="/final_output/${encodeURIComponent(file)}" type="audio/mpeg">
@@ -1681,12 +1685,15 @@
                 console.error("Failed to parse initial processed files:", e);
                 setActiveStep(1);
                 showMessage('Invalid or corrupted results data from URL. Please try again.', 'error');
-                downloadAllButton.style.display = 'none'; // Hide on error
+                downloadAllButton.style.display = 'none';
             }
         } else {
             setActiveStep(1);
-            downloadAllButton.style.display = 'none'; // Ensure hidden on initial load if not step 3
+            downloadAllButton.style.display = 'none';
         }
+
+        // Initialize donate button URL
+        updateDonateButton();
     </script>
 </body>
 </html>

@@ -1,79 +1,79 @@
-JustVocals
-JustVocals is a Flask-based web application that extracts vocals from audio files or YouTube videos using AI-powered tools like Demucs. This guide explains how to build and run the application using Docker from this GitHub repository.
-Prerequisites
+# JustVocals 🎤
 
-Docker: Install Docker (e.g., sudo pacman -S docker on Arch Linux, sudo apt install docker.io on Ubuntu).
-Git: Install Git (e.g., sudo pacman -S git or sudo apt install git).
-Internet Access: Required to clone the repository and download dependencies.
-Port Availability: Ensure port 5000 is free.
-System Resources: At least 4GB RAM and a multi-core CPU recommended for Demucs.
+JustVocals is a lightweight web app that lets you isolate clean vocals from YouTube videos or audio files using AI-powered tools like [Demucs](https://github.com/facebookresearch/demucs). With additional features like silence removal and vocal enhancement, it's a handy utility for musicians, producers, and remixers.
 
-Quick Start
+> 🧪 Built with Flask + SocketIO. Frontend is plain HTML/CSS/JS with zero frameworks.
 
-Clone the Repository:
-git clone https://github.com/yourusername/justvocals.git
+---
+
+## 🚀 Getting Started
+
+### ⚙️ Requirements
+
+- **Python 3.10 (recommended)**
+- `ffmpeg`
+- `demucs`
+- Python dependencies: see `requirements.txt`
+
+### 🔧 Setup
+
+```bash
+git clone https://github.com/hello2himel/justvocals.git
 cd justvocals
 
+# Create virtual environment
+python3.10 -m venv .venv
+source .venv/bin/activate
 
-Create Directories:Create directories for persistent storage:
-mkdir -p downloads separated final_output
-chmod -R 777 downloads separated final_output
+# Install dependencies
+pip install -r requirements.txt
 
+# Make sure ffmpeg and demucs are installed
+which ffmpeg
+which demucs
+````
 
-Build the Docker Image:
-docker build -t justvocals .
+### ▶️ Run
 
+```bash
+python main.py
+```
 
-Run the Container:
-docker run -d -p 5000:5000 \
-  -v $(pwd)/downloads:/app/downloads \
-  -v $(pwd)/separated:/app/separated \
-  -v $(pwd)/final_output:/app/final_output \
-  -e SECRET_KEY=$(python3 -c "import os; print(os.urandom(24).hex())") \
-  --name justvocals_container justvocals
+Then open your browser at: `http://127.0.0.1:5000`
 
+---
 
-Access the Application:Open a browser and navigate to http://localhost:5000.
+## 🧠 How It Works
 
-Usage:
+1. **Input Options**: User can upload an MP3/WAV or provide a YouTube link.
+2. **Vocal Isolation**: Uses `demucs` with `--two-stems=vocals` to extract vocals.
+3. **Optional Enhancements**:
 
-Upload an MP3/WAV file (max 100MB) or enter a YouTube URL.
-Adjust settings (silence removal, vocal enhancement, silence threshold, etc.).
-Download processed vocal tracks individually or as a ZIP.
+   * Normalize volume and apply high-pass filtering
+   * Soft compression to smooth dynamics
+4. **Silence Removal**: Detects low-RMS regions and trims long silences (configurable).
+5. **Output**: Returns MP3 files with isolated vocals, optionally enhanced and trimmed.
 
+---
 
-Stop the Container:
-docker stop justvocals_container
-docker rm justvocals_container
+## 🛠️ TODO
 
+* [ ] Make the codebase more production-ready (logging, error handling, etc.)
+* [ ] Package and publish a Docker image
+* [ ] Deploy on a public server (hosting costs required)
 
+---
 
-Troubleshooting
+## 🙌 Support This Project
 
-Build Errors:
-DNS Issues: If apt-get update fails, ensure internet access and try:docker build --build-arg DNS=8.8.8.8 -t justvocals .
+Hosting and development take time and funds. If you found JustVocals useful, please consider donating to help with server costs and feature development.
 
+👉 [Donate here](https://hello2himel.netlify.app/donate?source=JustVocals&session_id=github)
 
-Large Build Context: Ensure .dockerignore is present to exclude downloads, separated, and final_output.
+Thank you for supporting open source software!
 
+---
 
-Port Conflict: Use a different port (e.g., -p 8080:5000) and access http://localhost:8080.
-Permission Issues: Verify directories have write permissions (chmod -R 777 downloads separated final_output).
-Runtime Errors: Check logs:docker logs justvocals_container
+## 🏷️ License
 
-
-Dependency Issues: Ensure ffmpeg and demucs are installed correctly in the container:docker run -it justvocals bash
-ffmpeg -version
-python -c "import demucs; print(demucs.__version__)"
-
-
-
-Notes
-
-The container uses a Debian-based image (python:3.10-slim) with ffmpeg and demucs.
-Processed files are stored in the final_output directory on your host.
-The application is set to Japan Standard Time (JST).
-For production, the container uses gunicorn with eventlet.
-
-Support
-For issues, open a GitHub issue or contact the maintainer at [your contact info]. Support the project via https://ko-fi.com/hello2himel.
+GPL © [hello2himel](https://github.com/hello2himel)

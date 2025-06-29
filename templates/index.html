@@ -38,6 +38,7 @@
             --progress-inactive-text: #6b7280;
             --progress-completed-text: #4b5563;
             --warning-orange: #f59e0b; /* Explicitly define warning color */
+            --session-id-color: #9ca3af; /* Grey-ish color for session ID */
         }
 
         /* Dark Theme */
@@ -53,6 +54,7 @@
             --progress-inactive-text: #9ca3af;
             --progress-completed-text: #888;
             --warning-orange: #f97316; /* Lighter orange for dark theme */
+            --session-id-color: #6b7280; /* Grey-ish color for session ID in dark theme */
         }
 
         /* Body Styles */
@@ -605,7 +607,7 @@
             border-radius: var(--radius);
             font-size: 13px;
             font-weight: 500;
-            transition: all 0.2s ease;
+            transition: all  ത10px 0.2s ease;
             flex-shrink: 0;
         }
 
@@ -660,7 +662,7 @@
             font-family: var(--mono);
             display: inline-block;
             margin-top: 8px;
-            color: var(--text);
+            color: var(--session-id-color);
         }
 
         /* Utility Classes */
@@ -905,7 +907,7 @@
                     <h1>JustVocals</h1>
                 </a>
                 <div class="header-buttons">
-                    <button title="Source Code" class="icon-only-button"><i class="ri-code-s-slash-fill"></i></button>
+                    <button title="Source Code" class="icon-only-button" onclick="window.open('https://github.com/hello2himel/justvocals', '_blank')"><i class="ri-code-s-slash-fill"></i></button>
                     <button id="theme-toggle" aria-label="Toggle theme" class="icon-only-button"><i class="ri-sun-fill" id="theme-icon"></i></button>
                 </div>
             </nav>
@@ -1067,7 +1069,7 @@
         function updateDonateButton() {
             const donateButton = document.getElementById('donate-button');
             const donateUrl = new URL('https://hello2himel.netlify.app/donate');
-            donateUrl.searchParams.set('source', 'justvocals');
+            donateUrl.searchParams.set('source', 'JustVocals');
             donateUrl.searchParams.set('session_id', sessionId);
             donateButton.href = donateUrl.toString();
         }
@@ -1259,7 +1261,7 @@
         }
 
         function updateSilenceLenValue(val) {
-            document.getElementById('silence-len-value').textContent = val;
+            document.getElementById('silence_len-value').textContent = val;
         }
 
         function updateKeepSilenceValue(val) {

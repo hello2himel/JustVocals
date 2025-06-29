@@ -1,6 +1,6 @@
 # JustVocals 🎤
 
-JustVocals is a lightweight web app that lets you isolate clean vocals from YouTube videos or audio files using AI-powered tools like [Demucs](https://github.com/facebookresearch/demucs). With additional features like silence removal and vocal enhancement, it's a handy utility for musicians, producers, and remixers.
+JustVocals is a lightweight web app that lets you remove all the instruments and get clean vocals from YouTube videos or audio files using AI-powered tools like [Demucs](https://github.com/facebookresearch/demucs). With additional features like silence removal and vocal enhancement, it's a handy utility for music lovers.
 
 > 🧪 Built with Flask + SocketIO. Frontend is plain HTML/CSS/JS with zero frameworks.
 

@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.log
+
+# Virtual Environment
+.venv/
+
+# Audio and Media Outputs
+downloads/
+final_output/
+separated/
+user_data/
+vocal_extractor.log
+app.log
+
+# Static Outputs (if generated dynamically)
+*.wav
+*.mp3
+
+# VSCode or other IDE files
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

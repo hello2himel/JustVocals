@@ -1,0 +1,15 @@
+downloads/
+separated/
+final_output/
+.git/
+.gitignore
+venv/
+.venv/
+env/
+*.pyc
+__pycache__/
+*.log
+*.tmp
+*.tar
+*.md
+*.txt

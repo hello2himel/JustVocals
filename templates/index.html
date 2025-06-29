@@ -1,0 +1,1692 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Extract clean vocals from YouTube videos or audio files using AI-powered vocal isolation.">
+    <title>JustVocals</title>
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <!-- Remixicon CSS for icons -->
+    <link href="https://cdn.jsdelivr.net/npm/remixicon@4.2.0/fonts/remixicon.css" rel="stylesheet">
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='res/favicon.png') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+
+    <style>
+        /* General Reset and Variables */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #f9fafb;
+            --text: #111827;
+            --text-light: #6b7280;
+            --border: #e5e7eb;
+            --accent: #10b981; /* Default accent green */
+            --accent-hover: #059669;
+            --shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            --radius: 12px;
+            --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            --mono: 'SF Mono', Monaco, monospace;
+            --error-red: #ef4444; /* Define a red color for consistency */
+            --error-red-hover: #dc2626;
+
+            /* New: Theme-adaptive variables for progress steps */
+            --progress-bg: #e0e0e0; /* Light grey for light theme steps background */
+            --progress-inactive-text: #6b7280; /* text-light for inactive steps */
+            --progress-completed-text: #4b5563; /* slightly darker grey for completed steps */
+        }
+
+        /* Dark Theme */
+        [data-theme="dark"] {
+            --bg: #121212;
+            --text: #f3f4f6;
+            --text-light: #9ca3af;
+            --border: #374151;
+            --shadow: 0 4px 6px -1px rgba(255,255,255,0.05), 0 2px 4px -2px rgba(255,255,255,0.05);
+            --error-red: #f87171; /* Lighter red for dark theme */
+            --error-red-hover: #ef4444;
+
+            /* New: Dark theme adaptive variables for progress steps */
+            --progress-bg: #1e1e1e; /* Dark grey for dark theme steps background */
+            --progress-inactive-text: #9ca3af; /* text-light for inactive steps in dark mode */
+            --progress-completed-text: #888; /* slightly lighter grey for completed steps in dark mode */
+        }
+
+        /* Body Styles */
+        body {
+            font-family: var(--font);
+            font-size: 16px;
+            line-height: 1.5;
+            color: var(--text);
+            background: var(--bg);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* Container for content width */
+        .container {
+            width: 100%; /* Default for small screens */
+            max-width: 720px; /* Tablet breakpoint */
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        @media (min-width: 768px) {
+            .container {
+                max-width: 960px; /* Medium desktop */
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .container {
+                max-width: 1200px; /* Large desktop */
+            }
+        }
+
+        /* Header Styles */
+        header {
+            padding: 12px 0; /* Reduced from 16px */
+            position: sticky;
+            top: 0;
+            background: var(--bg);
+            z-index: 100;
+        }
+
+        header .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        /* Navbar inside header */
+        header nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        header nav > div {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* Space between logo and title, and between buttons */
+        }
+
+        .logo {
+            height: 32px;
+            width: auto;
+        }
+
+        /* Make logo and title clickable as a single unit */
+        .logo-title-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            text-decoration: none;
+            color: inherit; /* Inherit color from parent or default text color */
+            transition: opacity 0.2s ease;
+        }
+        .logo-title-link:hover {
+            opacity: 0.8;
+        }
+
+        /* Theme Toggle Button and other icon buttons */
+        .header-buttons button {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 20px; /* Make icons a bit larger */
+            padding: 8px;
+            border-radius: var(--radius);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .header-buttons button:hover {
+            background: var(--border);
+            color: var(--text);
+        }
+
+        /* Specific style for icon-only buttons like Source Code */
+        .icon-only-button {
+            width: 36px; /* Fixed width for consistent sizing */
+            height: 36px; /* Fixed height for consistent sizing */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px; /* Icon size */
+            padding: 0; /* Remove padding */
+        }
+
+        /* Main Content Area */
+        main {
+            flex: 1;
+            padding: 32px 0; /* Reduced from 48px */
+        }
+
+        /* Progress Steps UI */
+        .progress-steps {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            padding: 6px;
+            border-radius: 9999px;
+            background-color: var(--progress-bg);
+            margin-top: 20px;
+            margin-bottom: 30px;
+            width: 100%;
+        }
+
+        .step {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.25rem;
+            padding: 0.5rem 0.5rem;
+            border-radius: 9999px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.25s ease;
+            cursor: pointer;
+            text-align: center;
+
+            background: transparent;
+            color: var(--progress-inactive-text);
+            border: none;
+        }
+
+        .step.active {
+            background-color: #1abc9c;
+            color: white;
+            font-weight: 600;
+        }
+
+        .step.completed {
+            background: transparent;
+            color: var(--progress-completed-text);
+        }
+
+        .step .step-icon {
+            font-size: 1em;
+            margin-right: 0.1rem;
+        }
+
+        .tick-badge {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background-color: #16a085;
+            color: white;
+            font-size: 12px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-left: 0.25rem;
+        }
+
+        /* Media query for larger screens to restore larger padding/font-size */
+        @media (min-width: 768px) {
+            .step {
+                padding: 0.5rem 1.5rem;
+                font-size: 0.95rem;
+                gap: 0.5rem;
+            }
+             .progress-steps {
+                gap: 1rem;
+                flex-wrap: nowrap;
+            }
+        }
+
+        /* Media Query for small screens: Hide icons from progress steps */
+        @media (max-width: 640px) {
+            .step .step-icon,
+            .tick-badge {
+                display: none; /* Hide icons and tick badge on small screens */
+            }
+            .step {
+                justify-content: center; /* Re-center text if icons are removed */
+                gap: 0; /* Remove gap if icons are gone */
+            }
+        }
+
+
+        /* Step Content Sections as Cards */
+        .step-content {
+            display: none;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg);
+            box-shadow: var(--shadow);
+            margin-bottom: 16px;
+        }
+
+        .step-content.active {
+            display: block;
+        }
+
+        .step-content .card-header {
+            padding: 12px 20px;
+            font-weight: 700;
+            font-size: 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            /* Allow content to wrap if it exceeds width */
+            flex-wrap: wrap;
+            gap: 10px; /* Gap between stacked items when wrapped */
+        }
+
+        /* Group for the step number and title */
+        .step-content .card-header .step-title-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            /* Allow title group to shrink but don't force it to take full width */
+            flex-shrink: 1;
+        }
+
+        /* Container for action buttons on the right */
+        .card-header-actions {
+            display: flex;
+            align-items: center;
+            gap: 10px; /* Space between the spinner and buttons */
+            /* Push to the right on larger screens */
+            margin-left: auto;
+            flex-shrink: 0; /* Prevent from shrinking on large screens */
+        }
+
+
+        /* Styling for the step indicator within the card header */
+        .step-content .card-header .step-indicator {
+            background-color: var(--accent);
+            color: white;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 30px;
+            text-align: center;
+        }
+
+
+        .step-content .card-body {
+            padding: 16px;
+        }
+
+
+        /* Headings */
+        h2 {
+            font-size: 28px;
+            font-weight: 700;
+            margin-bottom: 24px;
+            letter-spacing: -0.025em;
+        }
+
+        /* Form Grouping */
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        /* Input Fields */
+        input[type="url"], input[type="file"] {
+            width: 100%;
+            padding: 12px 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 16px;
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            transition: all 0.2s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        /* Drop Zone for File Upload */
+        .drop-zone {
+            border: 2px dashed var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            text-align: center;
+            color: var(--text-light);
+            transition: all 0.2s ease;
+            cursor: pointer;
+        }
+
+        .drop-zone:hover, .drop-zone.drag-over {
+            border-color: var(--accent);
+            background: rgba(16, 185, 129, 0.05);
+        }
+
+        #upload-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            text-decoration: underline;
+            cursor: pointer;
+            font-size: 16px;
+            font-family: var(--font);
+            font-weight: 500;
+            transition: color 0.2s ease;
+        }
+
+        #upload-btn:hover {
+            color: var(--accent-hover);
+        }
+
+        #file-info {
+            margin-top: 12px;
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        /* Options (checkboxes) */
+        .options {
+            display: flex;
+            gap: 16px;
+            flex-direction: column;
+            margin: 16px 0;
+        }
+
+        .checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .checkbox input {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            accent-color: var(--accent);
+        }
+
+        /* Advanced Settings Collapsible */
+        .advanced {
+            margin: 16px 0;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .advanced summary {
+            padding: 16px;
+            cursor: pointer;
+            font-weight: 600;
+            background: var(--bg);
+            transition: background 0.2s ease;
+        }
+
+        .advanced summary:hover {
+            background: var(--border);
+        }
+
+        .advanced[open] summary {
+            border-bottom: 1px solid var(--border);
+        }
+
+        .advanced > div {
+            padding: 20px;
+        }
+
+        /* Range Inputs */
+        input[type="range"] {
+            width: 100%;
+            margin: 12px 0;
+            accent-color: var(--accent);
+        }
+
+        /* Buttons */
+        button {
+            background: var(--bg);
+            border: 1px solid var(--border);
+            padding: 12px 24px;
+            border-radius: var(--radius);
+            cursor: pointer;
+            font-size: 16px;
+            font-family: var(--font);
+            font-weight: 500;
+            color: var(--text);
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: var(--border);
+        }
+
+        button.primary {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+            padding: 16px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            transition: all 0.2s ease;
+        }
+
+        button.primary:hover {
+            background: var(--accent-hover);
+        }
+
+        button.primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        /* Abort Button specific style */
+        .abort-btn {
+            background-color: var(--error-red);
+            color: white;
+            border: 1px solid var(--error-red);
+            padding: 8px 16px;
+            border-radius: var(--radius);
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+        .abort-btn:hover {
+            background-color: var(--error-red-hover);
+            border-color: var(--error-red-hover);
+        }
+
+
+        /* Progress Bar */
+        .progress-bar-container {
+            margin: 16px 0;
+            background: var(--border);
+            border-radius: var(--radius);
+            height: 6px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            position: absolute;
+            top: -24px;
+            right: 0;
+            font-size: 14px;
+            color: var(--text-light);
+        }
+
+        /* Log Container */
+        .log-container {
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            max-height: 280px;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.02);
+            font-family: var(--mono);
+            font-size: 14px;
+        }
+
+        [data-theme="dark"] .log-container {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid transparent;
+        }
+
+        .log-entry:not(:last-child) {
+            margin-bottom: 4px;
+        }
+
+        .log-entry.error { color: var(--error-red); }
+        .log-entry.success { color: var(--accent); }
+        .log-entry.muted { color: var(--text-light); }
+        .log-entry.warning { color: #f59e0b; }
+
+
+        /* Audio Results Container */
+        .audio-container-item {
+            margin: 12px 0;
+            padding: 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: rgba(0,0,0,0.01);
+            display: flex;
+            flex-direction: column; /* Changed to column for stacking content within */
+            gap: 10px; /* Space between header and audio element */
+            align-items: flex-start;
+        }
+
+        [data-theme="dark"] .audio-container-item {
+            background: rgba(255,255,255,0.01);
+        }
+
+        /* Header for each audio item, to hold title and individual download button */
+        .audio-item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%; /* Take full width of its parent (.audio-container-item) */
+            margin-bottom: 5px; /* Small space before the audio player */
+        }
+
+        .audio-container-item h4 {
+            margin-bottom: 0; /* Remove default h4 margin-bottom */
+            font-size: 16px;
+            font-weight: 600;
+            flex-grow: 1; /* Allow title to take available space */
+            margin-right: 10px; /* Space between title and button */
+            word-break: break-word; /* Ensure long titles wrap */
+        }
+
+        audio {
+            width: 100%;
+            margin-bottom: 0;
+            border-radius: var(--radius);
+        }
+
+        .download-btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            /* Adjust individual download button for its new context */
+            padding: 6px 12px; /* Slightly smaller padding */
+            font-size: 13px; /* Slightly smaller font size */
+            flex-shrink: 0; /* Prevent button from shrinking */
+        }
+
+        .download-btn:hover {
+            background: var(--accent-hover);
+        }
+
+        /* Download All button specific style */
+        .download-all-btn {
+            background: #3498db; /* A blue color for distinction */
+            color: white;
+            border: none;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: var(--radius);
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            width: auto; /* Allow button to size to content */
+            justify-content: center; /* Center content within button */
+            cursor: pointer; /* Ensure it looks clickable */
+        }
+
+        .download-all-btn:hover {
+            background: #2980b9; /* Darker blue on hover */
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+        }
+
+
+        /* Footer */
+        footer {
+            padding: 24px 0;
+            margin-top: 32px;
+            text-align: center;
+            color: var(--text-light);
+            font-size: 14px;
+        }
+
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        footer a:hover {
+            color: var(--accent-hover);
+            text-decoration: underline;
+        }
+
+        /* Utility Classes */
+        .muted {
+            color: var(--text-light);
+            font-style: italic;
+        }
+
+        .success {
+            color: var(--accent);
+        }
+
+        .error {
+            color: #ef4444;
+        }
+
+        /* Custom Message Box for Alerts */
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #ffdddd;
+            color: #d8000c;
+            border: 1px solid #d8000c;
+            padding: 15px 20px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+            z-index: 1000;
+            width: calc(100% - 48px);
+            max-width: 500px;
+        }
+        .message-box.success-msg {
+            background-color: #d4edda;
+            color: #155724;
+            border-color: #155724;
+        }
+        .message-box button {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            color: inherit;
+            padding: 0;
+        }
+
+        /* Custom Confirmation Dialog */
+        .confirmation-dialog {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: var(--bg);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 25px;
+            z-index: 1001; /* Above message-box */
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            max-width: 400px;
+            text-align: center;
+        }
+
+        .confirmation-dialog p {
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .confirmation-dialog .dialog-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .confirmation-dialog .dialog-buttons button {
+            flex: 1; /* Equal width buttons */
+            padding: 10px 15px;
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        /* Specific styles for confirmation dialog buttons */
+        .confirmation-dialog #confirm-abort-btn {
+            background-color: var(--error-red);
+            border-color: var(--error-red);
+            color: white;
+        }
+
+        .confirmation-dialog #confirm-abort-btn:hover {
+            background-color: var(--error-red-hover);
+            border-color: var(--error-red-hover);
+        }
+
+        .confirmation-dialog #cancel-abort-btn {
+            background-color: var(--border);
+            border-color: var(--border);
+            color: var(--text);
+        }
+
+        .confirmation-dialog #cancel-abort-btn:hover {
+            background-color: #ccc;
+        }
+
+        /* Overlay for dialogs */
+        .overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            display: none;
+        }
+
+        /* Processing Spinner */
+        .processing-spinner {
+            display: none;
+            border: 2px solid var(--accent);
+            border-top: 2px solid transparent;
+            border-radius: 50%;
+            width: 1em;
+            height: 1em;
+            animation: spin 0.8s linear infinite;
+            vertical-align: middle;
+            margin-left: 8px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Horizontal rule (app-divider) */
+        .app-divider {
+            border: none;
+            border-top: 1px solid var(--border);
+            margin: 16px auto;
+            width: calc(100% - 48px);
+            max-width: 720px;
+        }
+
+        /* Responsive adjustments for app-divider based on container breakpoints */
+        @media (min-width: 768px) {
+            .app-divider {
+                max-width: 960px;
+            }
+        }
+
+        @media (min-width: 1200px) {
+            .app-divider {
+                max-width: 1200px;
+            }
+        }
+
+        /* Donation section specific styles */
+        .donation-section {
+            margin-top: 30px;
+            padding: 20px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            background: var(--bg);
+            box-shadow: var(--shadow);
+            text-align: center;
+        }
+
+        .donation-section h3 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 15px;
+            color: var(--accent);
+        }
+
+        .donation-section p {
+            font-size: 16px;
+            color: var(--text-light);
+            margin-bottom: 15px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .donation-section .donate-button-large {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: var(--radius);
+            font-size: 18px;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .donation-section .donate-button-large:hover {
+            background: var(--accent-hover);
+            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+        }
+
+        /* Media Query for Mobile Layout (Card Header) */
+        @media (max-width: 640px) { /* Adjust breakpoint as needed, 640px is a common 'sm' breakpoint */
+            .step-content .card-header {
+                flex-direction: column; /* Stack items vertically */
+                align-items: center; /* Center items horizontally in the column */
+                justify-content: center; /* Center the column itself if possible */
+                text-align: center; /* Ensure text within the header is centered */
+            }
+
+            .step-content .card-header .step-title-group {
+                width: 100%; /* Take full width to allow internal centering */
+                justify-content: center; /* Center the step indicator and text within their group */
+                margin-bottom: 10px; /* Add some space below the title when stacked */
+            }
+
+            .card-header-actions {
+                width: 100%; /* Take full width when stacked */
+                justify-content: center; /* Center buttons within their container */
+                margin-left: 0; /* Remove auto-margin that pushes to right on larger screens */
+            }
+
+            /* Ensure individual buttons inside card-header-actions can also center if there's only one */
+            .card-header-actions > .processing-spinner,
+            .card-header-actions > .abort-btn,
+            .card-header-actions > .download-all-btn {
+                margin: 0 auto; /* Center individual items if they become the sole item in their flex container */
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <nav>
+                <a class="logo-title-link" href="/">
+                    <img src="{{ url_for('static', filename='res/logo.png') }}" alt="JustVocals Logo" class="logo">
+                    <h1>JustVocals</h1>
+                </a>
+                <div class="header-buttons">
+                    <!-- Source Code button with icon only -->
+                    <button title="Source Code" class="icon-only-button"><i class="ri-code-s-slash-fill"></i></button>
+                    <!-- Donate button removed from top navbar -->
+                    <button id="theme-toggle" aria-label="Toggle theme" class="icon-only-button"><i class="ri-sun-fill" id="theme-icon"></i></button>
+                </div>
+            </nav>
+        </div>
+        <!-- Horizontal line below the header, not full width -->
+        <hr class="app-divider">
+    </header>
+
+    <main class="container">
+        <!-- Custom Message Box -->
+        <div id="message-box" class="message-box" style="display:none;">
+            <p id="message-text"></p>
+            <button id="message-close-btn">X</button>
+        </div>
+
+        <!-- Custom Confirmation Dialog -->
+        <div id="confirmation-overlay" class="overlay" style="display:none;"></div>
+        <div id="confirmation-dialog" class="confirmation-dialog" style="display:none;">
+            <p>Are you sure you want to stop the current process?</p>
+            <div class="dialog-buttons">
+                <button id="confirm-abort-btn">Yes, Abort</button>
+                <button id="cancel-abort-btn">No, Continue</button>
+            </div>
+        </div>
+
+        <div class="progress-steps">
+            <div class="step" data-step="1"></div>
+            <div class="step" data-step="2"></div>
+            <div class="step" data-step="3"></div>
+        </div>
+
+        <section class="step-content active" id="step-1">
+            <div class="card-header">
+                <div class="step-title-group">
+                    <span class="step-indicator">1</span>
+                    <span>Select Audio</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <h2>Select Your Audio</h2>
+                <form id="main-form" enctype="multipart/form-data">
+                    {{ form.hidden_tag() if form else '' }}
+                    <div class="form-group">
+                        <label for="link">YouTube URL</label>
+                        <input type="url" id="link" name="link" placeholder="https://www.youtube.com/watch?v=...">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="audio_file">Or Upload Audio</label>
+                        <div class="drop-zone" id="drop-zone">
+                            <p>Drop your audio file here or <button type="button" id="upload-btn">choose file</button></p>
+                            <input type="file" id="audio_file" name="audio_file" accept=".mp3,.wav" hidden> <!-- Added name="audio_file" -->
+                            <div id="file-info"></div>
+                        </div>
+                    </div>
+                    <details class="advanced" closed>
+                        <summary>Advanced Settings</summary>
+                        <div>
+                            <div class="options">
+                                <label class="checkbox">
+                                    <input type="checkbox" id="remove_silence" name="remove_silence" checked>
+                                    Remove silent segments
+                                </label>
+                                <label class="checkbox">
+                                    <input type="checkbox" id="enhance_vocals" name="enhance_vocals" checked>
+                                    Enhance vocal quality
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label for="silence_thresh">Silence Threshold: <span id="thresh-value">-40</span> dB</label>
+                                <input type="range" id="silence_thresh" name="silence_thresh" value="-40" min="-60" max="-20">
+                            </div>
+                            <div class="form-group">
+                                <label for="min_silence_len">Min Silence Length: <span id="silence-len-value">2</span>s</label>
+                                <input type="range" id="min_silence_len" name="min_silence_len" value="2" min="0.5" max="10" step="0.5">
+                            </div>
+                            <div class="form-group">
+                                <label for="keep_silence">Keep Silence: <span id="keep-silence-value">500</span>ms</label>
+                                <input type="range" id="keep_silence" name="keep_silence" value="500" min="0" max="2000" step="100">
+                            </div>
+                            <button type="button" id="reset-defaults">Reset Defaults</button>
+                        </div>
+                    </details>
+
+                    <button type="submit" id="main-btn" class="primary">Extract Vocals</button>
+                </form>
+            </div>
+        </section>
+
+        <section class="step-content" id="step-2">
+            <div class="card-header">
+                <div class="step-title-group">
+                    <span class="step-indicator">2</span>
+                    <span>Processing Audio</span>
+                </div>
+                <div class="card-header-actions">
+                    <span class="processing-spinner" id="processing-spinner"></span>
+                    <button type="button" id="abort-btn" class="abort-btn" style="display:none;">
+                        <i class="ri-stop-circle-line" aria-hidden="true"></i> <span>Abort</span>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="progress-bar-container" id="progress-bar" style="display:none">
+                    <div class="progress-fill"></div>
+                    <span class="progress-text">0%</span>
+                </div>
+                <div class="log-container" id="log-container">
+                    <div class="log-entry muted">Waiting for processing to start...</div>
+                </div>
+            </div>
+        </section>
+
+        <section class="step-content" id="step-3">
+            <div class="card-header">
+                <div class="step-title-group">
+                    <span class="step-indicator">3</span>
+                    <span>Results</span>
+                </div>
+                <div class="card-header-actions">
+                    <!-- Download All button moved here, initially hidden -->
+                    <a href="#" id="download-all-button" class="download-all-btn" style="display:none;">
+                        <i class="ri-folder-zip-line" aria-hidden="true"></i><span>Download All</span>
+                    </a>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="results-container">
+                    <p class="muted">No files processed yet.</p>
+                </div>
+
+                <div class="donation-section">
+                    <h3>Support Our Open Source Project</h3>
+                    <p>Vocals is a Free and Open Source Software (FOSS) project, proudly maintained by hobbyist developers like @hello2himel. We dedicate our time and resources to provide this tool for free, but hosting, development, and ongoing improvements come with costs.</p>
+                    <p>If you find Vocals useful, please consider supporting our work with a small donation. Your contribution helps keep this project alive and allows us to continue building and improving. Every bit helps!</p>
+                    <a href="https://ko-fi.com/hello2himel" target="_blank" class="donate-button-large">
+                        <i class="ri-heart-fill"></i> Support by donating
+                    </a>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <!-- Horizontal line above the footer content, not full width -->
+        <hr class="app-divider">
+        <div class="container">
+            <p>This FOSS software is proudly built in Bangladesh 🇧🇩 by <a href="https://github.com/hello2himel" target="_blank">@hello2himel</a></p>
+        </div>
+    </footer>
+
+    <script>
+        // Global flag to track if processing is active
+        let isProcessingActive = false;
+
+        // Custom Message Box Functions
+        function showMessage(message, type = 'error') {
+            const msgBox = document.getElementById('message-box');
+            const msgText = document.getElementById('message-text');
+            msgText.textContent = message;
+            msgBox.className = `message-box ${type === 'success' ? 'success-msg' : ''}`;
+            msgBox.style.display = 'flex';
+            // Error messages now persist until user interaction (explicitly hidden by other events)
+            if (type !== 'error') {
+                setTimeout(hideMessage, 5000);
+            }
+        }
+
+        function hideMessage() {
+            document.getElementById('message-box').style.display = 'none';
+        }
+
+        document.getElementById('message-close-btn').addEventListener('click', hideMessage);
+
+
+        // Theme handling
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = document.getElementById('theme-icon');
+        const savedTheme = localStorage.getItem('theme') ||
+            (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+
+        // Function to update the theme and icon
+        function applyTheme(theme) {
+            document.documentElement.setAttribute('data-theme', theme);
+            localStorage.setItem('theme', theme);
+            themeIcon.classList.toggle('ri-sun-fill', theme === 'light');
+            themeIcon.classList.toggle('ri-moon-fill', theme === 'dark');
+        }
+
+        // Apply theme on initial load
+        applyTheme(savedTheme);
+
+        themeToggle.addEventListener('click', () => {
+            const current = document.documentElement.getAttribute('data-theme');
+            applyTheme(current === 'dark' ? 'light' : 'dark');
+        });
+
+        // Step management
+        const steps = document.querySelectorAll('.step');
+        const stepContents = document.querySelectorAll('.step-content');
+        const downloadAllButton = document.getElementById('download-all-button'); // Get the new button element
+        const abortButton = document.getElementById('abort-btn'); // Get the abort button
+
+        // Text labels for each step
+        const stepLabels = ['Select Audio', 'Processing', 'Results'];
+        // Icons for each step (Remixicon classes)
+        const stepIcons = ['ri-file-music-line', 'ri-loader-4-line ri-spin', 'ri-check-line'];
+
+        function setActiveStep(num) {
+            steps.forEach((step, i) => {
+                step.classList.remove('active', 'completed'); // Clear all state classes
+                step.innerHTML = ''; // Clear previous content (icon, text, tick)
+
+                const textSpan = document.createElement('span');
+                textSpan.textContent = stepLabels[i];
+
+                if (i + 1 === num) { // Active step
+                    step.classList.add('active');
+                    const icon = document.createElement('i');
+                    icon.className = `step-icon ${stepIcons[i]}`;
+                    step.appendChild(icon);
+                    step.appendChild(textSpan);
+                } else if (i + 1 < num) { // Completed step
+                    step.classList.add('completed');
+                    step.appendChild(textSpan); // Text first
+                    const tickBadge = document.createElement('span');
+                    tickBadge.className = 'tick-badge';
+                    tickBadge.innerHTML = '&#10003;'; // Checkmark character
+                    step.appendChild(tickBadge);
+                } else { // Inactive (future) step
+                    const icon = document.createElement('i');
+                    icon.className = `step-icon ${stepIcons[i].replace(' ri-spin', '')}`; // No spin for future steps
+                    step.appendChild(icon);
+                    step.appendChild(textSpan);
+                }
+            });
+
+            stepContents.forEach((content, i) => {
+                content.classList.toggle('active', i + 1 === num);
+            });
+            window.scrollTo({ top: 0, behavior: 'smooth' }); // Scroll to top on step change
+
+            // Hide download all button if not on step 3
+            if (num !== 3) {
+                 downloadAllButton.style.display = 'none';
+            }
+            // Hide abort button if not on step 2
+            if (num !== 2) {
+                abortButton.style.display = 'none';
+            }
+
+            // Clear error borders when navigating to step 1
+            if (num === 1) {
+                linkInput.classList.remove('error-border');
+                fileInput.classList.remove('error-border');
+            }
+        }
+
+        // File handling
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('audio_file');
+        const uploadBtn = document.getElementById('upload-btn');
+        const fileInfo = document.getElementById('file-info');
+        const linkInput = document.getElementById('link');
+
+        // State variable to track if the selected file is valid (type and size)
+        let isFileSelectedValid = false;
+
+        // Click handler for custom upload button
+        uploadBtn.addEventListener('click', () => fileInput.click());
+
+        // Drag and Drop handlers
+        dropZone.addEventListener('dragover', e => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', () => {
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            if (e.dataTransfer.files.length) {
+                handleFile(e.dataTransfer.files[0]);
+            }
+        });
+
+        // File input change handler (simplified)
+        fileInput.addEventListener('change', () => {
+            hideMessage();
+            fileInput.classList.remove('error-border');
+            const file = fileInput.files[0];
+            if (!file) {
+                fileInfo.textContent = '';
+                isFileSelectedValid = false;
+                linkInput.setAttribute('name', 'link');
+                fileInput.removeAttribute('name');
+                return;
+            }
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            const validTypes = ['audio/mpeg', 'audio/wav'];
+            const maxSize = 100 * 1024 * 1024; // 100MB
+            if (!validTypes.includes(file.type)) {
+                showMessage('Invalid file format. Please upload MP3 or WAV.', 'error');
+                fileInput.value = '';
+                fileInfo.textContent = '';
+                isFileSelectedValid = false;
+                linkInput.setAttribute('name', 'link');
+                fileInput.removeAttribute('name');
+                return;
+            }
+            if (file.size > maxSize) {
+                showMessage('File too large. Maximum size is 100MB.', 'error');
+                fileInput.classList.add('error-border');
+                fileInput.value = '';
+                fileInfo.textContent = '';
+                isFileSelectedValid = false;
+                linkInput.setAttribute('name', 'link');
+                fileInput.removeAttribute('name');
+                return;
+            }
+            fileInfo.innerHTML = `<span class="success">${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)</span>`;
+            isFileSelectedValid = true;
+            linkInput.value = '';
+            linkInput.removeAttribute('name');
+            fileInput.setAttribute('name', 'audio_file');
+            hideMessage();
+        }
+
+        /**
+         * Handles input in the YouTube URL field. Clears file input if URL is entered.
+         */
+        linkInput.addEventListener('input', () => {
+            hideMessage(); // Clear messages on input change
+            linkInput.classList.remove('error-border'); // Remove error border
+
+            if (linkInput.value.trim() !== '') {
+                fileInput.value = ''; // Clear the file input
+                fileInfo.textContent = ''; // Clear file info display
+                isFileSelectedValid = false; // Reset file valid state as link is now active
+                fileInput.removeAttribute('name'); // Remove name from file input
+                linkInput.setAttribute('name', 'link'); // Set name on link input
+                hideMessage(); // Hide any previous error messages
+            } else {
+                // If link input is cleared, reset to default state (file input active, link inactive for submission)
+                fileInput.setAttribute('name', 'audio_file');
+                linkInput.removeAttribute('name');
+            }
+        });
+
+
+        // Range inputs update
+        function updateThresholdValue(val) {
+            document.getElementById('thresh-value').textContent = val;
+        }
+
+        function updateSilenceLenValue(val) {
+            document.getElementById('silence-len-value').textContent = val;
+        }
+
+        function updateKeepSilenceValue(val) {
+            document.getElementById('keep-silence-value').textContent = val;
+        }
+
+        document.getElementById('silence_thresh').addEventListener('input', e =>
+            updateThresholdValue(e.target.value));
+        document.getElementById('min_silence_len').addEventListener('input', e =>
+            updateSilenceLenValue(e.target.value));
+        document.getElementById('keep_silence').addEventListener('input', e =>
+            updateKeepSilenceValue(e.target.value));
+
+        document.getElementById('reset-defaults').addEventListener('click', () => {
+            document.getElementById('silence_thresh').value = -40;
+            document.getElementById('min_silence_len').value = 2;
+            document.getElementById('keep_silence').value = 500;
+            updateThresholdValue(-40);
+            updateSilenceLenValue(2);
+            updateKeepSilenceValue(500);
+            document.getElementById('remove_silence').checked = true;
+            document.getElementById('enhance_vocals').checked = true;
+            showMessage('Advanced settings reset to defaults.', 'info');
+        });
+
+        // Socket.IO and form handling
+        const socket = io();
+        const form = document.getElementById('main-form');
+        const mainBtn = document.getElementById('main-btn');
+        const logContainer = document.getElementById('log-container');
+        const resultsContainer = document.getElementById('results-container');
+        const progressBar = document.getElementById('progress-bar');
+        const processingSpinner = document.getElementById('processing-spinner');
+        // downloadAllButton and abortButton are globally available
+
+        let isSubmitting = false; // Prevents multiple submissions
+
+        // Socket.IO event handlers
+        socket.on('log_message', function(data) {
+            console.log("Log Message:", data); // DEBUG
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${data.type === 'error' ? 'error' : data.type === 'success' ? 'success' : data.type === 'warning' ? 'warning' : 'muted'}`;
+            logEntry.textContent = `${new Date().toLocaleTimeString()} - ${data.message}`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        });
+
+        socket.on('progress_update', function(data) {
+            console.log("Progress Update:", data); // DEBUG
+            const progressFill = progressBar.querySelector('.progress-fill');
+            const progressText = progressBar.querySelector('.progress-text');
+            progressBar.style.display = 'block';
+            progressFill.style.width = `${data.progress}%`;
+            progressText.textContent = `${data.stage || 'Processing'}: ${data.progress.toFixed(1)}%`;
+
+            // Simplified log update: always append a new log entry for progress updates
+            // This ensures every message is visible for debugging without complex logic.
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log-entry muted'; // Progress updates are generally 'muted' info
+            logEntry.textContent = `${new Date().toLocaleTimeString()} - ${data.stage || 'Processing'}: ${data.progress.toFixed(1)}%`;
+            logContainer.appendChild(logEntry);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        });
+
+        socket.on('processing_complete', function(data) {
+            console.log("Processing complete event received!", data); // DEBUG: Crucial log
+            isSubmitting = false;
+            isProcessingActive = false; // Processing is no longer active
+            mainBtn.disabled = false;
+            mainBtn.innerHTML = 'Extract Vocals'; // Reset button text
+            processingSpinner.style.display = 'none'; // Hide spinner
+            progressBar.style.display = 'none';
+            abortButton.style.display = 'none'; // Hide abort button
+            hideMessage(); // Hide any active messages
+
+            if (data.files && data.files.length) {
+                console.log("Files found in processing_complete data:", data.files); // DEBUG
+                let filesHtml = data.files.map(file => `
+                    <div class="audio-container-item">
+                        <div class="audio-item-header">
+                            <h4>${file}</h4>
+                            <a href="/final_output/${encodeURIComponent(file)}" class="download-btn" download>
+                                <i class="ri-download-line" aria-hidden="true"></i> <span>Download</span>
+                            </a>
+                        </div>
+                        <audio controls preload="metadata">
+                            <source src="/final_output/${encodeURIComponent(file)}" type="audio/mpeg">
+                        </audio>
+                    </div>
+                `).join('');
+
+                if (data.files.length > 1) {
+                    downloadAllButton.style.display = 'inline-flex';
+                    downloadAllButton.href = `/download-all?files=${encodeURIComponent(JSON.stringify(data.files))}`;
+                } else {
+                    downloadAllButton.style.display = 'none';
+                }
+
+                const donationSectionElement = document.querySelector('#step-3 .donation-section');
+                resultsContainer.innerHTML = `
+                    <p class="success">Extracted vocals from ${data.files.length} file(s)</p>
+                    ${filesHtml}
+                    <button onclick="setActiveStep(1)" class="primary" style="margin-top: 20px;">Process Another</button>
+                `;
+                if (donationSectionElement) {
+                    resultsContainer.appendChild(donationSectionElement);
+                }
+                setActiveStep(3);
+                showMessage('Processing complete! Your vocals are ready.', 'success');
+                history.pushState({step: 3, files: data.files}, 'Results', `?step=3&files=${encodeURIComponent(JSON.stringify(data.files))}`);
+            } else {
+                console.log("No files or empty files array received in processing_complete:", data); // DEBUG
+                // If files are empty but `aborted` flag is true, show aborted message
+                if (data.aborted) {
+                    logContainer.innerHTML = '<div class="log-entry warning">Processing aborted by user.</div>';
+                    showMessage('Processing was aborted.', 'warning');
+                } else {
+                    logContainer.innerHTML = '<div class="log-entry error">No files processed.</div>';
+                    showMessage('Processing completed but no output files were generated. Please try again.', 'error');
+                }
+                setActiveStep(1); // Go back to step 1
+                downloadAllButton.style.display = 'none'; // Ensure hidden if no files
+            }
+        });
+
+        socket.on('error', data => {
+            console.error("Error event received!", data); // DEBUG: Crucial log
+            isSubmitting = false;
+            isProcessingActive = false; // Processing is no longer active
+            mainBtn.disabled = false; // Re-enable button immediately
+            mainBtn.innerHTML = 'Extract Vocals'; // Reset button text
+            processingSpinner.style.display = 'none'; // Hide spinner
+            progressBar.style.display = 'none';
+            abortButton.style.display = 'none'; // Hide abort button
+            logContainer.innerHTML = `<div class="log-entry error">${data.message || 'An unknown error occurred.'}</div>`;
+            setActiveStep(1);
+            showMessage(data.message || 'An error occurred during processing.', 'error');
+            linkInput.classList.remove('error-border');
+            fileInput.classList.remove('error-border');
+            downloadAllButton.style.display = 'none'; // Ensure hidden on error
+        });
+
+        // Form submission handling
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            if (isSubmitting) {
+                showMessage('A submission is already in progress. Please wait.', 'error');
+                return;
+            }
+
+            hideMessage();
+            linkInput.classList.remove('error-border');
+            fileInput.classList.remove('error-border');
+
+            const linkValue = linkInput.value.trim();
+            const currentFile = fileInput.files[0];
+            const youtubeUrlRegex = /^(https?:\/\/)?(www\.)?(youtube\.com|youtu\.be)\/.+/;
+
+            // Pre-submission Validation
+            if (linkValue && currentFile) {
+                showMessage('Please provide only one input: a YouTube URL or an audio file.', 'error');
+                return;
+            }
+
+            if (!linkValue && !currentFile) {
+                showMessage('Please provide either a YouTube URL or upload an audio file.', 'error');
+                return;
+            }
+
+            if (linkValue) {
+                if (!youtubeUrlRegex.test(linkValue)) {
+                    showMessage('Please provide a valid YouTube URL.', 'error');
+                    linkInput.classList.add('error-border');
+                    return; // Do not proceed if validation fails
+                }
+                linkInput.setAttribute('name', 'link');
+                fileInput.removeAttribute('name');
+            } else if (currentFile) {
+                const validTypes = ['audio/mpeg', 'audio/wav'];
+                const maxSize = 100 * 1024 * 1024; // 100MB
+                if (!validTypes.includes(currentFile.type)) {
+                    showMessage('Invalid file format. Please upload MP3 or WAV.', 'error');
+                    fileInput.classList.add('error-border');
+                    fileInput.value = '';
+                    fileInfo.textContent = '';
+                    isFileSelectedValid = false;
+                    linkInput.setAttribute('name' , 'link');
+                    fileInput.removeAttribute('name');
+                    return; // Do not proceed
+                }
+                if (currentFile.size > maxSize) {
+                    showMessage('File too large. Maximum size is 100MB.', 'error');
+                    fileInput.classList.add('error-border');
+                    fileInput.value = '';
+                    fileInfo.textContent = '';
+                    isFileSelectedValid = false;
+                    linkInput.setAttribute('name', 'link');
+                    fileInput.removeAttribute('name');
+                    return; // Do not proceed
+                }
+                isFileSelectedValid = true;
+                fileInput.setAttribute('name', 'audio_file');
+                linkInput.removeAttribute('name');
+            } else {
+                return; // Should not happen due to previous checks but good for safety
+            }
+
+            isSubmitting = true;
+            isProcessingActive = true; // Processing is now active
+            mainBtn.disabled = true;
+            mainBtn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> Processing...';
+            processingSpinner.style.display = 'inline-block';
+            abortButton.style.display = 'inline-flex'; // Show abort button
+            setActiveStep(2);
+            logContainer.innerHTML = '<div class="log-entry muted">Starting processing...</div>';
+
+            const minSilenceLenInput = document.getElementById('min_silence_len');
+            const originalMinSilenceLenValue = minSilenceLenInput.value;
+            minSilenceLenInput.value = parseFloat(originalMinSilenceLenValue) * 1000;
+
+            fetch('/', {
+                method: 'POST',
+                body: new FormData(form)
+            }).then(response => {
+                minSilenceLenInput.value = originalMinSilenceLenValue; // Restore original value
+                if (!response.ok) {
+                    // Check if the response is JSON before parsing
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.indexOf("application/json") !== -1) {
+                        return response.json().then(errorData => {
+                            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+                        });
+                    } else {
+                        // If not JSON, just throw a generic error
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                }
+                // If response is OK (204 No Content), no need to parse JSON.
+            }).catch(err => {
+                console.error('Submission fetch error:', err);
+                socket.emit('error', { message: err.message || 'Submission failed. Please try again.' });
+                minSilenceLenInput.value = originalMinSilenceLenValue; // Restore original value on catch
+            });
+        });
+
+        // Abort button functionality
+        const confirmationDialog = document.getElementById('confirmation-dialog');
+        const confirmationOverlay = document.getElementById('confirmation-overlay');
+        const confirmAbortBtn = document.getElementById('confirm-abort-btn');
+        const cancelAbortBtn = document.getElementById('cancel-abort-btn');
+
+        abortButton.addEventListener('click', () => {
+            confirmationDialog.style.display = 'flex';
+            confirmationOverlay.style.display = 'block';
+        });
+
+        confirmAbortBtn.addEventListener('click', () => {
+            socket.emit('abort_processing');
+            isSubmitting = false;
+            isProcessingActive = false; // Processing is no longer active
+            mainBtn.disabled = false;
+            mainBtn.innerHTML = 'Extract Vocals';
+            processingSpinner.style.display = 'none';
+            progressBar.style.display = 'none';
+            abortButton.style.display = 'none';
+            setActiveStep(1);
+            hideMessage(); // Hide any existing message
+            showMessage('Processing aborted successfully.', 'warning');
+            confirmationDialog.style.display = 'none';
+            confirmationOverlay.style.display = 'none';
+        });
+
+        cancelAbortBtn.addEventListener('click', () => {
+            confirmationDialog.style.display = 'none';
+            confirmationOverlay.style.display = 'none';
+        });
+
+        // Confirmation before page close/refresh/back
+        window.addEventListener('beforeunload', function (e) {
+            if (isProcessingActive) {
+                // Cancel the event
+                e.preventDefault();
+                // Chrome requires returnValue to be set
+                e.returnValue = '';
+                return 'Processing is in progress. Are you sure you want to leave?';
+            }
+        });
+
+
+        // Handle browser history for steps
+        window.addEventListener('popstate', (event) => {
+            if (event.state && event.state.step) {
+                setActiveStep(event.state.step);
+                if (event.state.step === 3 && event.state.files) {
+                    try {
+                        const files = event.state.files;
+                        if (!Array.isArray(files)) { // Expect array of filenames
+                            throw new Error('Invalid files data in history.');
+                        }
+                        let filesHtml = files.map(file => `
+                            <div class="audio-container-item">
+                                <div class="audio-item-header">
+                                    <h4>${file}</h4>
+                                    <a href="/final_output/${encodeURIComponent(file)}" class="download-btn" download>
+                                        <i class="ri-download-line" aria-hidden="true"></i> <span>Download</span>
+                                    </a>
+                                </div>
+                                <audio controls preload="metadata">
+                                    <source src="/final_output/${encodeURIComponent(file)}" type="audio/mpeg">
+                                </audio>
+                            </div>
+                        `).join('');
+
+                        if (files.length > 1) {
+                            downloadAllButton.style.display = 'inline-flex';
+                            downloadAllButton.href = `/download-all?files=${encodeURIComponent(JSON.stringify(files))}`;
+                        } else {
+                            downloadAllButton.style.display = 'none';
+                        }
+
+                        const donationSectionElement = document.querySelector('#step-3 .donation-section');
+                        resultsContainer.innerHTML = `
+                            <p class="success">Extracted vocals from ${files.length} file(s)</p>
+                            ${filesHtml}
+                            <button onclick="setActiveStep(1)" class="primary" style="margin-top: 20px;">Process Another</button>
+                        `;
+                        if (donationSectionElement) {
+                            resultsContainer.appendChild(donationSectionElement);
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse or validate history state files:", e);
+                        setActiveStep(1);
+                        showMessage('Invalid or corrupted results data from history. Please try again.', 'error');
+                        downloadAllButton.style.display = 'none'; // Hide on error
+                    }
+                }
+            } else {
+                setActiveStep(1);
+                downloadAllButton.style.display = 'none'; // Ensure hidden if not step 3
+            }
+        });
+
+        // Initial load check for processed files (if coming from a redirect)
+        const urlParams = new URLSearchParams(window.location.search);
+        const processedFilesParam = urlParams.get('files');
+        const initialStepParam = urlParams.get('step');
+
+        if (initialStepParam === '3' && processedFilesParam) {
+            try {
+                const initialFiles = JSON.parse(decodeURIComponent(processedFilesParam));
+                if (!Array.isArray(initialFiles)) { // Expect array of filenames
+                    throw new Error('Invalid initial files data from URL.');
+                }
+                let filesHtml = initialFiles.map(file => `
+                    <div class="audio-container-item">
+                        <div class="audio-item-header">
+                            <h4>${file}</h4>
+                            <a href="/final_output/${encodeURIComponent(file)}" class="download-btn" download>
+                                <i class="ri-download-line" aria-hidden="true"></i> <span>Download</span>
+                                </a>
+                        </div>
+                        <audio controls preload="metadata">
+                            <source src="/final_output/${encodeURIComponent(file)}" type="audio/mpeg">
+                        </audio>
+                    </div>
+                `).join('');
+
+                if (initialFiles.length > 1) {
+                    downloadAllButton.style.display = 'inline-flex';
+                    downloadAllButton.href = `/download-all?files=${encodeURIComponent(JSON.stringify(initialFiles))}`;
+                } else {
+                    downloadAllButton.style.display = 'none';
+                }
+
+                const donationSectionElement = document.querySelector('#step-3 .donation-section');
+                resultsContainer.innerHTML = `
+                    <p class="success">Extracted vocals from ${initialFiles.length} file(s)</p>
+                    ${filesHtml}
+                    <button onclick="setActiveStep(1)" class="primary" style="margin-top: 20px;">Process Another</button>
+                `;
+                if (donationSectionElement) {
+                    resultsContainer.appendChild(donationSectionElement);
+                }
+                setActiveStep(3);
+            } catch (e) {
+                console.error("Failed to parse initial processed files:", e);
+                setActiveStep(1);
+                showMessage('Invalid or corrupted results data from URL. Please try again.', 'error');
+                downloadAllButton.style.display = 'none'; // Hide on error
+            }
+        } else {
+            setActiveStep(1);
+            downloadAllButton.style.display = 'none'; // Ensure hidden on initial load if not step 3
+        }
+    </script>
+</body>
+</html>

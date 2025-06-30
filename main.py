@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor
 import tempfile
 import socket
 from pathlib import Path
-from flask import Flask, render_template, request, send_from_directory, Response, session, abort
+from flask import Flask, render_template, request, send_from_directory, Response, session, abort, send_file
 from flask_socketio import SocketIO, emit
 from flask_wtf import FlaskForm
 from wtforms import StringField, SubmitField, BooleanField, FileField
@@ -34,15 +34,15 @@ class Config:
     MAX_PROCESSING_TIME = int(os.environ.get('MAX_PROCESSING_TIME', 1800))  # 30 minutes
     CHUNK_SIZE = 1024 * 1024  # 1MB chunks
     THREAD_WORKERS = min(int(os.environ.get('THREAD_WORKERS', 4)), os.cpu_count() or 4)
-    SILENCE_THRESH_DEFAULT = int(os.environ.get('SILENCE_THRESH_DEFAULT', -40))  # Match older code
-    MIN_SILENCE_LEN_DEFAULT = int(os.environ.get('MIN_SILENCE_LEN_DEFAULT', 2000))  # Match older code
+    SILENCE_THRESH_DEFAULT = int(os.environ.get('SILENCE_THRESH_DEFAULT', -40))
+    MIN_SILENCE_LEN_DEFAULT = int(os.environ.get('MIN_SILENCE_LEN_DEFAULT', 2000))
     KEEP_SILENCE_DEFAULT = int(os.environ.get('KEEP_SILENCE_DEFAULT', 500))
     CORS_ORIGINS = [
         'http://localhost:5000',
         'http://127.0.0.1:5000',
-        'http://192.168.0.101:5000',  # Explicitly include the router IP
+        'http://192.168.0.101:5000',
     ]
-    LOG_UPDATE_INTERVAL = float(os.environ.get('LOG_UPDATE_INTERVAL', 2.0))  # Seconds
+    LOG_UPDATE_INTERVAL = float(os.environ.get('LOG_UPDATE_INTERVAL', 2.0))
 
 # Setup logging
 logging.basicConfig(
@@ -66,7 +66,6 @@ except Exception as e:
     logger.warning(f"Could not determine local IP: {str(e)}")
     LOCAL_IP = "unknown"
 
-# Ensure unique CORS origins
 Config.CORS_ORIGINS = list(set(Config.CORS_ORIGINS))
 logger.info(f"CORS allowed origins: {Config.CORS_ORIGINS}")
 
@@ -88,7 +87,6 @@ class ValidationError(Exception): pass
 
 # Helper functions
 def get_user_directories(session_id):
-    """Get session-specific directories"""
     base_dir = os.path.join(Config.BASE_DIR, session_id)
     return {
         'download': os.path.join(base_dir, 'downloads'),
@@ -98,7 +96,6 @@ def get_user_directories(session_id):
 
 @contextmanager
 def temp_audio_file(suffix='.wav'):
-    """Context manager for temporary audio files"""
     temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
     try:
         yield temp_file.name
@@ -109,7 +106,6 @@ def temp_audio_file(suffix='.wav'):
             logger.warning(f"Failed to cleanup temp file {temp_file.name}: {str(e)}")
 
 def sanitize_filename(filename):
-    """Sanitize filenames to prevent path traversal and ensure safety"""
     filename = os.path.basename(filename)
     filename = ''.join(c for c in filename if c.isalnum() or c in '._-')
     if len(filename) > 255:
@@ -119,7 +115,6 @@ def sanitize_filename(filename):
     return filename
 
 def validate_audio_file_fast(file_path):
-    """Quick validation of audio file using headers"""
     try:
         with open(file_path, 'rb') as f:
             header = f.read(4)
@@ -131,7 +126,6 @@ def validate_audio_file_fast(file_path):
 
 @lru_cache(maxsize=32)
 def get_audio_metadata(file_path):
-    """Cached audio metadata retrieval"""
     try:
         duration = librosa.get_duration(path=file_path)
         return {'duration': duration}
@@ -140,7 +134,6 @@ def get_audio_metadata(file_path):
         return {'duration': 0}
 
 def emit_log(message, type="info", error_context=None):
-    """Emit log message with context"""
     socketio.emit('log_message', {'message': message, 'type': type})
     log_level = 'info' if type == 'success' else type
     if type == "error" and error_context:
@@ -149,7 +142,6 @@ def emit_log(message, type="info", error_context=None):
         getattr(logger, log_level)(message)
 
 def emit_progress(file_index, total_files, step, total_steps, stage_name="Processing"):
-    """Emit progress update to frontend"""
     progress_per_file = 100 / total_files
     progress_per_step_in_file = progress_per_file / total_steps
     current_file_base_progress = (file_index - 1) * progress_per_file
@@ -158,7 +150,6 @@ def emit_progress(file_index, total_files, step, total_steps, stage_name="Proces
     socketio.emit('progress_update', {'progress': round(total_progress, 1), 'stage': stage_name})
 
 def progress_heartbeat(process_name, stop_event):
-    """Emit periodic status updates during long-running processes"""
     start_time = time.time()
     while not stop_event.is_set():
         elapsed = time.time() - start_time
@@ -166,7 +157,6 @@ def progress_heartbeat(process_name, stop_event):
         time.sleep(Config.LOG_UPDATE_INTERVAL)
 
 def run_subprocess_with_timeout(command, timeout=Config.MAX_PROCESSING_TIME, progress_callback=None):
-    """Run subprocess with timeout and optional progress callback"""
     try:
         process = subprocess.Popen(
             command,
@@ -214,35 +204,15 @@ def run_subprocess_with_timeout(command, timeout=Config.MAX_PROCESSING_TIME, pro
     except Exception as e:
         raise AudioProcessingError(f"Subprocess error: {str(e)}")
 
-def load_audio_chunked(file_path, chunk_duration=30):
-    """Load audio in chunks to manage memory"""
-    try:
-        sr = librosa.get_samplerate(file_path)
-        chunk_samples = int(chunk_duration * sr)
-        offset = 0
-        chunk_index = 0
-        while True:
-            audio, _ = librosa.load(file_path, sr=sr, offset=offset / sr, duration=chunk_duration)
-            if len(audio) == 0:
-                break
-            chunk_index += 1
-            emit_log(f"Chunk {chunk_index}: samples={len(audio)}, sr={sr}", "info")
-            yield audio, sr
-            offset += chunk_samples
-    except Exception as e:
-        raise AudioProcessingError(f"Failed to load audio {file_path}: {str(e)}")
-
+# Voice Enhancement Logic (from old code)
 def enhance_vocals(vocals, sr):
-    """Apply audio enhancement to vocals"""
     try:
         max_val = np.max(np.abs(vocals))
         if max_val > 0:
             vocals = vocals / max_val * 0.95
-            emit_log(f"🎵 Normalized vocals to {max_val:.2f} amplitude", "info")
 
         sos = butter(4, 80, btype='high', fs=sr, output='sos')
         vocals = sosfilt(sos, vocals)
-        emit_log("🎵 Applied high-pass filter", "info")
 
         def soft_compress(audio, threshold=0.3, ratio=3.0):
             compressed = np.copy(audio)
@@ -252,272 +222,145 @@ def enhance_vocals(vocals, sr):
             return compressed
 
         vocals = soft_compress(vocals)
-        emit_log("🎵 Applied soft compression", "info")
         return vocals
     except Exception as e:
         emit_log(f"⚠️ Enhancement failed, using original: {str(e)}", "warning")
         return vocals
 
-def create_test_audio():
-    """Create test audio with known silent periods for debugging"""
-    sr = 22050
-    duration = 10  # 10 seconds
-    t = np.linspace(0, duration, sr * duration)
-    audio = np.zeros_like(t)
-    audio[0:2*sr] = np.sin(2 * np.pi * 440 * t[0:2*sr])  # 2s of 440Hz
-    audio[5*sr:7*sr] = np.sin(2 * np.pi * 440 * t[5*sr:7*sr])  # 2s of 440Hz after 3s silence
-    return audio, sr
-
+# Silence Removal Logic (from old code, adapted for new structure)
 def remove_silence(audio_path, output_path, silence_thresh, min_silence_len, keep_silence):
-    """Remove long silent segments from audio with robust processing"""
     filename = os.path.basename(audio_path)
     emit_log(f"🔇 Processing silence removal for {filename}...", "info")
 
-    # Validate parameters
-    if silence_thresh > -10:
-        emit_log(f"Warning: Silence threshold {silence_thresh}dB might be too high", "warning")
-    if min_silence_len < 500:
-        emit_log(f"Warning: Minimum silence length {min_silence_len}ms might be too short", "warning")
-
     try:
-        validate_audio_file_fast(audio_path)
         file_size = os.path.getsize(audio_path) / (1024 * 1024)  # MB
         if file_size > 100:
             emit_log(f"⚠️ Large file ({file_size:.1f}MB), processing may take time", "warning")
 
-        # Choose loading method based on file size
-        use_chunked_loading = file_size > 50  # Use chunked loading for files > 50MB
-        sr = librosa.get_samplerate(audio_path)
+        # Load audio once (single-pass loading for stability)
+        audio, sr = librosa.load(audio_path, sr=None)
+        total_samples = len(audio)
+        emit_log(f"📈 Loaded audio: {total_samples / sr:.1f}s, {sr}Hz", "info")
+
         if sr < 8000 or sr > 192000:
             emit_log(f"⚠️ Unusual sample rate: {sr}Hz", "warning")
 
-        if use_chunked_loading:
-            emit_log("📏 Loading audio in chunks for memory efficiency...", "info")
-            audio_chunks = []
-            for chunk, chunk_sr in load_audio_chunked(audio_path):
-                audio_chunks.append(chunk)
-                if sr != chunk_sr:
-                    raise AudioProcessingError(f"Inconsistent sample rate in chunk: {chunk_sr} vs {sr}")
-            if not audio_chunks:
-                raise AudioProcessingError("No audio data loaded")
-            audio = np.concatenate(audio_chunks)
-            emit_log(f"📈 Loaded {len(audio_chunks)} audio chunks: {len(audio) / sr:.1f}s, {sr}Hz", "info")
-        else:
-            emit_log("📏 Loading audio in single pass...", "info")
-            audio, sr = librosa.load(audio_path, sr=None)
-            emit_log(f"📈 Loaded audio: {len(audio) / sr:.1f}s, {sr}Hz", "info")
+        # Convert thresholds
+        frame_length = int(sr * 0.025)  # 25ms frames
+        hop_length = int(frame_length // 2)
+        min_silence_samples = int(min_silence_len * sr / 1000)
+        keep_silence_samples = int(keep_silence * sr / 1000)
 
-        total_samples = len(audio)
-        if total_samples == 0:
-            raise AudioProcessingError("Audio file is empty")
+        # Calculate RMS
+        emit_log("🔄 Computing audio energy...", "info")
+        rms = librosa.feature.rms(y=audio, frame_length=frame_length, hop_length=hop_length)[0]
+        max_rms = np.max(rms)
 
-        # Primary method: RMS-based silence detection (inspired by older code)
-        try:
-            frame_length = int(sr * 0.025)  # 25ms frames
-            hop_length = int(frame_length // 2)
-            min_silence_samples = int(min_silence_len * sr / 1000)
-            keep_silence_samples = int(keep_silence * sr / 1000)
-
-            emit_log("🔄 Computing audio energy...", "info")
-            rms = librosa.feature.rms(y=audio, frame_length=frame_length, hop_length=hop_length)[0]
-            emit_log(f"RMS stats - min: {np.min(rms):.6f}, max: {np.max(rms):.6f}, mean: {np.mean(rms):.6f}", "info")
-            max_rms = np.max(rms)
-
-            if max_rms == 0:
-                emit_log("⚠️ Audio is completely silent, copying original", "warning")
-                shutil.copy(audio_path, output_path)
-                return True
-
-            silence_thresh_linear = 10 ** (silence_thresh / 20)
-            dynamic_thresh = max(silence_thresh_linear, max_rms * 0.05)
-            emit_log(f"🔍 Using silence threshold: {20 * np.log10(dynamic_thresh):.1f}dB", "info")
-            silent_frames = rms < dynamic_thresh
-            emit_log(f"Silent frames: {np.sum(silent_frames)}/{len(silent_frames)} "
-                     f"({np.sum(silent_frames)/len(silent_frames)*100:.1f}%)", "info")
-
-            if len(silent_frames) == 0:
-                emit_log("⚠️ No frames detected, copying original", "warning")
-                shutil.copy(audio_path, output_path)
-                return True
-
-            frame_times = librosa.frames_to_samples(np.arange(len(silent_frames)), hop_length=hop_length)
-            silent_regions = []
-            start = None
-            for i, is_silent in enumerate(silent_frames):
-                sample = frame_times[min(i, len(frame_times) - 1)]
-                if is_silent and start is None:
-                    start = sample
-                elif not is_silent and start is not None:
-                    if sample - start >= min_silence_samples:
-                        silent_regions.append((start, sample))
-                    start = None
-                if start is not None and total_samples - start >= min_silence_samples:
-                    silent_regions.append((start, total_samples))
-
-            for i, (start, end) in enumerate(silent_regions):
-                duration_ms = (end - start) / sr * 1000
-                emit_log(f"Silent region {i+1}: {start/sr:.2f}s - {end/sr:.2f}s (duration: {duration_ms:.0f}ms)", "info")
-
-            if not silent_regions:
-                emit_log("✅ No long silences found, copying original", "success")
-                with temp_audio_file(suffix='.wav') as temp_wav:
-                    sf.write(temp_wav, audio, sr)
-                    run_subprocess_with_timeout(['ffmpeg', '-i', temp_wav, '-b:a', '256k', output_path, '-y'])
-                return True
-
-            keep_segments = []
-            last_end = 0
-            for start, end in silent_regions:
-                if start > last_end:
-                    keep_segments.append((last_end, start))
-                last_end = end
-            if last_end < total_samples:
-                keep_segments.append((last_end, total_samples))
-
-            keep_segments = [(max(0, s), min(total_samples, e)) for s, e in keep_segments if e > s]
-            emit_log(f"Original segments: {len(keep_segments)}", "info")
-            for i, (start, end) in enumerate(keep_segments):
-                emit_log(f"Keep segment {i+1}: {start/sr:.2f}s - {end/sr:.2f}s", "info")
-
-            merged_segments = []
-            for seg in keep_segments:
-                if merged_segments and seg[0] - merged_segments[-1][1] < sr * 0.1:
-                    merged_segments[-1] = (merged_segments[-1][0], seg[1])
-                else:
-                    merged_segments.append(seg)
-            keep_segments = merged_segments
-            emit_log(f"Merged segments: {len(keep_segments)}", "info")
-
-            final_audio = []
-            last_end = 0
-            for i, (start, end) in enumerate(keep_segments):
-                start_padded = max(last_end, start - keep_silence_samples)
-                end_padded = min(total_samples, end + keep_silence_samples)
-                emit_log(f"Segment {i+1}: {start_padded/sr:.2f}s → {end_padded/sr:.2f}s", "info")
-                segment = audio[start_padded:end_padded]
-                final_audio.append(segment)
-                last_end = end_padded
-
-            if not final_audio:
-                emit_log("⚠️ No audio segments to keep, copying original", "warning")
-                shutil.copy(audio_path, output_path)
-                return True
-
-            final_audio = np.concatenate(final_audio)
-            emit_log(f"Temp WAV duration: {len(final_audio) / sr:.2f}s", "info")
-
-            with temp_audio_file(suffix='.wav') as temp_wav:
-                sf.write(temp_wav, final_audio, sr)
-                if not os.path.exists(temp_wav):
-                    raise AudioProcessingError("Failed to create temporary WAV file")
-                run_subprocess_with_timeout(['ffmpeg', '-i', temp_wav, '-b:a', '256k', output_path, '-y'])
-
-            if os.path.exists(output_path):
-                final_size = os.path.getsize(output_path)
-                emit_log(f"Final file created: {final_size} bytes", "info")
-
-            original_duration = total_samples / sr
-            final_duration = len(final_audio) / sr
-            emit_log(f"⏱️ Original: {original_duration:.1f}s → Final: {final_duration:.1f}s "
-                     f"({(original_duration - final_duration) / original_duration * 100:.1f}% removed)", "success")
-            return True
-
-        except Exception as e:
-            emit_log(f"⚠️ RMS-based silence removal failed: {str(e)}, trying librosa.effects.split", "warning")
-
-            # Fallback: librosa.effects.split
-            try:
-                if use_chunked_loading:
-                    audio, sr = np.concatenate(audio_chunks), sr  # Reuse loaded chunks if available
-                else:
-                    audio, sr = librosa.load(audio_path, sr=None)
-
-                intervals = librosa.effects.split(
-                    audio,
-                    top_db=-silence_thresh,
-                    frame_length=2048,
-                    hop_length=512
-                )
-                emit_log(f"Found {len(intervals)} non-silent intervals", "info")
-                for i, (start, end) in enumerate(intervals):
-                    duration_ms = (end - start) / sr * 1000
-                    emit_log(f"Non-silent interval {i+1}: {start/sr:.2f}s - {end/sr:.2f}s (duration: {duration_ms:.0f}ms)", "info")
-
-                if len(intervals) == 0:
-                    emit_log("⚠️ No non-silent intervals found, copying original", "warning")
-                    shutil.copy(audio_path, output_path)
-                    return True
-
-                min_silence_samples = int(min_silence_len * sr / 1000)
-                keep_silence_samples = int(keep_silence * sr / 1000)
-                keep_segments = []
-                last_end = 0
-                for start, end in intervals:
-                    if start - last_end >= min_silence_samples:
-                        keep_segments.append((last_end, start))
-                    last_end = end
-                if last_end < total_samples:
-                    keep_segments.append((last_end, total_samples))
-
-                keep_segments = [(max(0, s), min(total_samples, e)) for s, e in keep_segments if e > s]
-                emit_log(f"Original segments: {len(keep_segments)}", "info")
-                for i, (start, end) in enumerate(keep_segments):
-                    emit_log(f"Keep segment {i+1}: {start/sr:.2f}s - {end/sr:.2f}s", "info")
-
-                merged_segments = []
-                for seg in keep_segments:
-                    if merged_segments and seg[0] - merged_segments[-1][1] < sr * 0.1:
-                        merged_segments[-1] = (merged_segments[-1][0], seg[1])
-                    else:
-                        merged_segments.append(seg)
-                keep_segments = merged_segments
-                emit_log(f"Merged segments: {len(keep_segments)}", "info")
-
-                final_audio = []
-                last_end = 0
-                for i, (start, end) in enumerate(keep_segments):
-                    start_padded = max(last_end, start - keep_silence_samples)
-                    end_padded = min(total_samples, end + keep_silence_samples)
-                    emit_log(f"Segment {i+1}: {start_padded/sr:.2f}s → {end_padded/sr:.2f}s", "info")
-                    segment = audio[start_padded:end_padded]
-                    final_audio.append(segment)
-                    last_end = end_padded
-
-                if not final_audio:
-                    emit_log("⚠️ No audio segments to keep, copying original", "warning")
-                    shutil.copy(audio_path, output_path)
-                    return True
-
-                final_audio = np.concatenate(final_audio)
-                emit_log(f"Temp WAV duration: {len(final_audio) / sr:.2f}s", "info")
-
-                with temp_audio_file(suffix='.wav') as temp_wav:
-                    sf.write(temp_wav, final_audio, sr)
-                    if not os.path.exists(temp_wav):
-                        raise AudioProcessingError("Failed to create temporary WAV file")
-                    run_subprocess_with_timeout(['ffmpeg', '-i', temp_wav, '-b:a', '256k', output_path, '-y'])
-
-                if os.path.exists(output_path):
-                    final_size = os.path.getsize(output_path)
-                    emit_log(f"Final file created: {final_size} bytes", "info")
-
-                original_duration = total_samples / sr
-                final_duration = len(final_audio) / sr
-                emit_log(f"⏱️ Original: {original_duration:.1f}s → Final: {final_duration:.1f}s "
-                         f"({(original_duration - final_duration) / original_duration * 100:.1f}% removed)", "success")
-                return True
-
-            except Exception as e:
-                emit_log(f"❌ Librosa split failed: {str(e)}", "error", error_context=str(e))
-
-        # Final fallback: Copy original
-        try:
+        if max_rms == 0:
+            emit_log("⚠️ Audio is completely silent, keeping original", "warning")
             shutil.copy(audio_path, output_path)
-            emit_log("🔄 Copied original file as final fallback", "info")
             return True
-        except Exception as e:
-            emit_log(f"❌ Final fallback copy failed: {str(e)}", "error", error_context=str(e))
-            return False
+
+        # Dynamic threshold
+        silence_thresh_linear = 10 ** (silence_thresh / 20)
+        dynamic_thresh = max(silence_thresh_linear, max_rms * 0.05)  # Minimum 5% of max RMS
+        emit_log(f"🔍 Using silence threshold: {20 * np.log10(dynamic_thresh):.1f}dB", "info")
+
+        # Identify silent frames
+        silent_frames = rms < dynamic_thresh
+        if len(silent_frames) == 0:
+            emit_log("⚠️ No frames detected, keeping original", "warning")
+            shutil.copy(audio_path, output_path)
+            return True
+
+        # Convert frames to samples
+        frame_times = librosa.frames_to_samples(np.arange(len(silent_frames)), hop_length=hop_length)
+
+        # Find silent regions
+        silent_regions = []
+        start = None
+        for i, is_silent in enumerate(silent_frames):
+            sample = frame_times[min(i, len(frame_times) - 1)]
+            if is_silent and start is None:
+                start = sample
+            elif not is_silent and start is not None:
+                if sample - start >= min_silence_samples:
+                    silent_regions.append((start, sample))
+                start = None
+        if start is not None and total_samples - start >= min_silence_samples:
+            silent_regions.append((start, total_samples))
+
+        if not silent_regions:
+            emit_log("✅ No long silences found", "success")
+            with temp_audio_file(suffix='.wav') as temp_wav:
+                sf.write(temp_wav, audio, sr)
+                run_subprocess_with_timeout(['ffmpeg', '-i', temp_wav, '-b:a', '256k', output_path, '-y'])
+            return True
+
+        emit_log(f"✅ Found {len(silent_regions)} silent segments", "success")
+
+        # Create keep segments
+        keep_segments = []
+        last_end = 0
+        for start, end in silent_regions:
+            if start > last_end:
+                keep_segments.append((last_end, start))
+            last_end = end
+        if last_end < total_samples:
+            keep_segments.append((last_end, total_samples))
+
+        # Validate segments
+        keep_segments = [(max(0, s), min(total_samples, e)) for s, e in keep_segments if e > s]
+        if not keep_segments:
+            emit_log("⚠️ No valid segments found, keeping original", "warning")
+            shutil.copy(audio_path, output_path)
+            return True
+
+        # Merge close segments
+        merged_segments = []
+        for seg in keep_segments:
+            if merged_segments and seg[0] - merged_segments[-1][1] < sr * 0.1:
+                merged_segments[-1] = (merged_segments[-1][0], seg[1])
+            else:
+                merged_segments.append(seg)
+        keep_segments = merged_segments
+        emit_log(f"🧩 Keeping {len(keep_segments)} segments", "info")
+
+        # Extract segments with padding
+        final_audio = []
+        last_end = 0
+        for i, (start, end) in enumerate(keep_segments):
+            start_padded = max(last_end, start - keep_silence_samples)
+            end_padded = min(total_samples, end + keep_silence_samples)
+            emit_log(f"🧩 Segment {i + 1}: {start_padded / sr:.2f}s → {end_padded / sr:.2f}s", "info")
+            segment = audio[start_padded:end_padded]
+            final_audio.append(segment)
+            last_end = end_padded
+
+        if not final_audio:
+            emit_log("⚠️ No audio segments to keep, using original", "warning")
+            shutil.copy(audio_path, output_path)
+            return True
+
+        final_audio = np.concatenate(final_audio)
+        emit_log("💾 Saving processed audio...", "info")
+
+        # Save output
+        with temp_audio_file(suffix='.wav') as temp_wav:
+            sf.write(temp_wav, final_audio, sr)
+            try:
+                run_subprocess_with_timeout(['ffmpeg', '-i', temp_wav, '-b:a', '256k', output_path, '-y'])
+            except AudioProcessingError as e:
+                emit_log(f"⚠️ FFmpeg conversion failed: {str(e)}, keeping WAV", "warning")
+                shutil.move(temp_wav, output_path)
+                return True
+
+        original_duration = total_samples / sr
+        final_duration = len(final_audio) / sr
+        emit_log(f"⏱️ Original: {original_duration:.1f}s → Final: {final_duration:.1f}s "
+                 f"({(original_duration - final_duration) / original_duration * 100:.1f}% removed)", "success")
+
+        return True
 
     except Exception as e:
         emit_log(f"❌ Fatal error: {str(e)}", "error", error_context=str(e))
@@ -525,8 +368,8 @@ def remove_silence(audio_path, output_path, silence_thresh, min_silence_len, kee
             shutil.copy(audio_path, output_path)
             emit_log("🔄 Copied original file as fallback", "info")
             return True
-        except Exception as e:
-            emit_log(f"❌ Fallback copy failed: {str(e)}", "error", error_context=str(e))
+        except Exception as copy_e:
+            emit_log(f"❌ Fallback copy failed: {str(copy_e)}", "error", error_context=str(copy_e))
             return False
 
 class ProcessForm(FlaskForm):
@@ -539,36 +382,30 @@ class ProcessForm(FlaskForm):
     enhance_vocals = BooleanField('Enhance Vocals', default=True)
     submit = SubmitField('Remove Instruments')
 
+# Instrument Removal and File Processing Logic
 def process_files(selected_files, session_id, remove_silence_enabled, enhance_vocals_enabled, silence_thresh,
                  min_silence_len, keep_silence):
-    """Process audio files with session isolation"""
     user_dirs = get_user_directories(session_id)
     processed_files = []
     total_files = len(selected_files)
-
-    num_sub_steps_per_file = 1  # Demucs
-    if enhance_vocals_enabled:
-        num_sub_steps_per_file += 1
-    if remove_silence_enabled:
-        num_sub_steps_per_file += 1
-    else:
-        num_sub_steps_per_file += 1
+    total_steps = 3 if remove_silence_enabled and enhance_vocals_enabled else 2 if remove_silence_enabled or enhance_vocals_enabled else 1
 
     emit_log(f"🎵 Starting vocal extraction from {total_files} file(s)...", "info")
 
     for i, filename in enumerate(selected_files, 1):
         emit_log(f"📁 Processing file {i}/{total_files}: {filename}", "info")
         input_path = os.path.join(user_dirs['download'], filename)
-        current_step_in_file = 1
+        step = 1
 
         if not os.path.exists(input_path):
             emit_log(f"❌ Input file not found: {filename}", "error")
             continue
 
+        # Step 1: Extract vocals using Demucs
         emit_log("🎤 Isolating vocals with AI model...", "info")
-        emit_progress(i, total_files, current_step_in_file, num_sub_steps_per_file, "Isolating Vocals")
+        emit_progress(i, total_files, step, total_steps, "Isolating Vocals")
         if shutil.which('demucs') is None:
-            emit_log("❌ Demucs not found. Please install it with 'pip install demucs'.", "error")
+            emit_log("❌ Demucs not found. Install it with 'pip install demucs'.", "error")
             continue
 
         stop_heartbeat = threading.Event()
@@ -577,18 +414,11 @@ def process_files(selected_files, session_id, remove_silence_enabled, enhance_vo
         heartbeat_thread.start()
 
         try:
-            demucs_output_dir = os.path.join(user_dirs['separated'], 'htdemucs', os.path.splitext(filename)[0])
-            demucs_cmd = ['demucs', '--two-stems=vocals', '-o', user_dirs['separated'], input_path]
-            emit_log(f"🔧 Running Demucs command: {' '.join(demucs_cmd)}", "info")
-
+            demucs_cmd = ['demucs', input_path] if not enhance_vocals_enabled else ['demucs', '--two-stems=vocals',
+                                                                                 '-o', user_dirs['separated'], input_path]
             def demucs_progress(progress):
-                emit_progress(i, total_files, current_step_in_file, num_sub_steps_per_file,
-                             f"Isolating Vocals ({progress:.1f}%)")
-
+                emit_progress(i, total_files, step, total_steps, f"Isolating Vocals ({progress:.1f}%)")
             result = run_subprocess_with_timeout(demucs_cmd, progress_callback=demucs_progress)
-            emit_log(f"🔍 Demucs output: {result.stdout}", "info")
-            if result.stderr:
-                emit_log(f"⚠️ Demucs warnings/errors: {result.stderr}", "warning")
             emit_log("✅ Vocal isolation completed!", "success")
         except AudioProcessingError as e:
             emit_log(f"❌ Vocal isolation failed: {str(e)}", "error", error_context=str(e))
@@ -597,8 +427,11 @@ def process_files(selected_files, session_id, remove_silence_enabled, enhance_vo
         finally:
             stop_heartbeat.set()
 
+        # Find the vocals file
         base_name = os.path.splitext(filename)[0]
+        demucs_output_dir = os.path.join(user_dirs['separated'], 'htdemucs', base_name)
         vocals_file = os.path.join(demucs_output_dir, 'vocals.wav')
+
         if not os.path.exists(vocals_file):
             emit_log(f"❌ Could not find vocals file for {filename}", "error")
             try:
@@ -608,47 +441,37 @@ def process_files(selected_files, session_id, remove_silence_enabled, enhance_vo
                 emit_log(f"⚠️ Failed to list Demucs output directory: {str(e)}", "warning")
             continue
 
-        current_step_in_file += 1
+        step += 1
+        # Step 2: Enhance vocals if enabled
         if enhance_vocals_enabled:
             emit_log("🎵 Enhancing vocal quality...", "info")
-            emit_progress(i, total_files, current_step_in_file, num_sub_steps_per_file, "Enhancing Vocals")
+            emit_progress(i, total_files, step, total_steps, "Enhancing Vocals")
             stop_heartbeat = threading.Event()
             heartbeat_thread = threading.Thread(target=progress_heartbeat, args=("Vocal enhancement", stop_heartbeat))
             heartbeat_thread.daemon = True
             heartbeat_thread.start()
             try:
+                vocals, sr = librosa.load(vocals_file, sr=None)
+                vocals = enhance_vocals(vocals, sr)
                 enhanced_vocals_file = os.path.join(demucs_output_dir, f"{base_name}_enhanced_vocals.wav")
-                vocals_chunks = []
-                sr = None
-                for chunk, chunk_sr in load_audio_chunked(vocals_file):
-                    enhanced_chunk = enhance_vocals(chunk, chunk_sr)
-                    vocals_chunks.append(enhanced_chunk)
-                    sr = chunk_sr
-                if not vocals_chunks:
-                    raise AudioProcessingError("No audio chunks loaded for enhancement")
-                vocals = np.concatenate(vocals_chunks)
                 sf.write(enhanced_vocals_file, vocals, sr)
-                if not os.path.exists(enhanced_vocals_file):
-                    raise AudioProcessingError(f"Failed to save enhanced vocals to {enhanced_vocals_file}")
                 vocals_file = enhanced_vocals_file
-                emit_log(f"✅ Vocal enhancement completed! Saved to {vocals_file}", "success")
-            except AudioProcessingError as e:
-                emit_log(f"⚠️ Enhancement failed for {filename}: {str(e)}", "warning")
-                vocals_file = vocals_file
+                emit_log("✅ Vocal enhancement completed!", "success")
             except Exception as e:
-                emit_log(f"❌ Unexpected error during enhancement for {filename}: {str(e)}", "error",
-                         error_context=str(e))
-                vocals_file = vocals_file
+                emit_log(f"⚠️ Enhancement failed, using original: {str(e)}", "warning")
+                stop_heartbeat.set()
+                continue
             finally:
                 stop_heartbeat.set()
-            current_step_in_file += 1
+            step += 1
 
+        # Step 3: Remove silence if enabled
         final_filename = f"{base_name}_vocals_only.mp3"
         final_path = os.path.join(user_dirs['final'], final_filename)
 
         if remove_silence_enabled:
             emit_log("🔇 Removing silence from vocals...", "info")
-            emit_progress(i, total_files, current_step_in_file, num_sub_steps_per_file, "Removing Silence")
+            emit_progress(i, total_files, step, total_steps, "Removing Silence")
             stop_heartbeat = threading.Event()
             heartbeat_thread = threading.Thread(target=progress_heartbeat, args=("Silence removal", stop_heartbeat))
             heartbeat_thread.daemon = True
@@ -665,23 +488,24 @@ def process_files(selected_files, session_id, remove_silence_enabled, enhance_vo
                     processed_files.append(final_filename)
                     emit_log(f"🎉 Completed: {final_filename}", "success")
                 else:
-                    raise AudioProcessingError("Silence removal failed")
-            except AudioProcessingError as e:
-                emit_log(f"⚠️ Silence removal failed: {str(e)}", "warning", error_context=str(e))
-                try:
-                    run_subprocess_with_timeout(['ffmpeg', '-i', vocals_file, '-b:a', '256k', final_path, '-y'])
-                    processed_files.append(final_filename)
-                    emit_log(f"🎉 Fallback conversion completed: {final_filename}", "success")
-                except AudioProcessingError as e:
-                    emit_log(f"❌ Fallback conversion failed: {str(e)}", "error", error_context=str(e))
-                    continue
+                    emit_log("⚠️ Silence removal failed, converting vocals to MP3...", "warning")
+                    try:
+                        run_subprocess_with_timeout(['ffmpeg', '-i', vocals_file, '-b:a', '256k', final_path, '-y'])
+                        processed_files.append(final_filename)
+                        emit_log(f"🎉 Fallback conversion completed: {final_filename}", "success")
+                    except AudioProcessingError as e:
+                        emit_log(f"❌ Fallback conversion failed: {str(e)}", "error", error_context=str(e))
+                        continue
             finally:
                 stop_heartbeat.set()
         else:
             emit_log("💾 Converting vocals to MP3...", "info")
-            emit_progress(i, total_files, current_step_in_file, num_sub_steps_per_file, "Converting to MP3")
+            emit_progress(i, total_files, step, total_steps, "Converting to MP3")
             try:
-                run_subprocess_with_timeout(['ffmpeg', '-i', vocals_file, '-b:a', '256k', final_path, '-y'])
+                audio, sr = librosa.load(vocals_file, sr=None)
+                with temp_audio_file(suffix='.wav') as temp_wav:
+                    sf.write(temp_wav, audio, sr)
+                    run_subprocess_with_timeout(['ffmpeg', '-i', temp_wav, '-b:a', '256k', final_path, '-y'])
                 processed_files.append(final_filename)
                 emit_log(f"🎉 Completed: {final_filename}", "success")
             except AudioProcessingError as e:
@@ -692,7 +516,6 @@ def process_files(selected_files, session_id, remove_silence_enabled, enhance_vo
 
 @app.route('/final_output/<filename>')
 def serve_final_output(filename):
-    """Serve files from the session-specific final_output directory"""
     session_id = session.get('session_id')
     if not session_id:
         emit_log("❌ No session ID found", "error")
@@ -711,24 +534,24 @@ def serve_final_output(filename):
 
 @app.route('/download-all', methods=['GET'])
 def download_all_files():
-    """Zip and download multiple processed audio files"""
     session_id = session.get('session_id')
     if not session_id:
         emit_log("❌ No session ID found", "error")
-        abort(403)
+        abort(403, description="No session ID found")
 
     file_names_json = request.args.get('files')
     if not file_names_json:
         emit_log("❌ No files specified for download", "error")
-        abort(400)
+        abort(400, description="No files specified for download")
 
     try:
         file_names = json.loads(file_names_json)
-        if not isinstance(file_names, list):
-            raise ValidationError("Invalid file list format")
-    except json.JSONDecodeError:
-        emit_log("❌ Invalid JSON format for files parameter", "error")
-        abort(400)
+        if not isinstance(file_names, list) or not file_names:
+            emit_log("❌ Invalid or empty file list format", "error")
+            abort(400, description="Invalid or empty file list format")
+    except json.JSONDecodeError as e:
+        emit_log(f"❌ Invalid JSON format for files parameter: {str(e)}", "error", error_context=str(e))
+        abort(400, description="Invalid JSON format for files parameter")
 
     user_final_dir = get_user_directories(session_id)['final']
     zip_base_name = "JustVocals_Extracted_Audio"
@@ -736,43 +559,78 @@ def download_all_files():
     temp_zip_output_dir = None
 
     try:
+        emit_log("📦 Preparing to zip files...", "info")
         temp_content_dir = tempfile.mkdtemp()
         temp_zip_output_dir = tempfile.mkdtemp()
+        valid_files = []
 
+        # Validate and copy files
         for fname in file_names:
             try:
-                fname = sanitize_filename(fname)
-                src_path = os.path.join(user_final_dir, fname)
+                sanitized_fname = sanitize_filename(fname)
+                src_path = os.path.join(user_final_dir, sanitized_fname)
                 if not os.path.exists(src_path):
-                    emit_log(f"⚠️ File not found for zipping: {fname}", "warning")
+                    emit_log(f"⚠️ File not found for zipping: {sanitized_fname}", "warning")
                     continue
-                shutil.copy(src_path, temp_content_dir)
+                if not os.access(src_path, os.R_OK):
+                    emit_log(f"⚠️ File not readable: {sanitized_fname}", "warning")
+                    continue
+                dest_path = os.path.join(temp_content_dir, sanitized_fname)
+                shutil.copy2(src_path, dest_path)
+                valid_files.append(sanitized_fname)
+                emit_log(f"✅ Added {sanitized_fname} to zip", "success")
             except ValidationError as e:
                 emit_log(f"⚠️ Invalid filename for zipping: {fname} - {str(e)}", "warning")
                 continue
+            except OSError as e:
+                emit_log(f"⚠️ Error copying file {fname}: {str(e)}", "warning", error_context=str(e))
+                continue
 
-        zip_file_path = shutil.make_archive(
-            os.path.join(temp_zip_output_dir, zip_base_name),
-            'zip',
-            root_dir=temp_content_dir,
-            base_dir='.'
-        )
+        if not valid_files:
+            emit_log("❌ No valid files available to zip", "error")
+            abort(400, description="No valid files available to zip")
 
-        return send_file(zip_file_path, as_attachment=True, download_name=os.path.basename(zip_file_path))
+        # Create zip file
+        zip_file_path = os.path.join(temp_zip_output_dir, zip_base_name)
+        try:
+            zip_file_path = shutil.make_archive(
+                zip_file_path,
+                'zip',
+                root_dir=temp_content_dir,
+                base_dir='.'
+            )
+            emit_log(f"✅ Zip file created: {os.path.basename(zip_file_path)}", "success")
+        except Exception as e:
+            emit_log(f"❌ Failed to create zip file: {str(e)}", "error", error_context=str(e))
+            abort(500, description=f"Failed to create zip file: {str(e)}")
+
+        # Send zip file
+        try:
+            return send_file(
+                zip_file_path,
+                as_attachment=True,
+                download_name=f"{zip_base_name}.zip",
+                mimetype='application/zip'
+            )
+        except Exception as e:
+            emit_log(f"❌ Failed to send zip file: {str(e)}", "error", error_context=str(e))
+            abort(500, description=f"Failed to send zip file: {str(e)}")
+
     except Exception as e:
-        emit_log(f"❌ Error zipping files: {str(e)}", "error", error_context=str(e))
-        abort(500)
+        emit_log(f"❌ Error during zip preparation: {str(e)}", "error", error_context=str(e))
+        abort(500, description=f"Error during zip preparation: {str(e)}")
     finally:
+        # Cleanup temporary directories
         for d in [temp_content_dir, temp_zip_output_dir]:
             if d and os.path.exists(d):
                 try:
                     shutil.rmtree(d)
+                    emit_log(f"🧹 Cleaned up temporary directory: {d}", "info")
                 except Exception as e:
                     logger.warning(f"Failed to cleanup temp dir {d}: {str(e)}")
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    """Main route for handling form submissions and rendering the UI"""
     form = ProcessForm()
     processed_files = []
 
@@ -871,8 +729,10 @@ def index():
                     if d['status'] == 'downloading':
                         current_time = time.time()
                         if current_time - last_progress_time >= Config.LOG_UPDATE_INTERVAL:
-                            emit_log(f"⬇️ Download Progress: {d['_percent_str'] or 'N/A'}", "info")
+                            emit_log(f"⬇️ Download Progress: {d.get('_percent_str', 'N/A')}", "info")
                             last_progress_time = current_time
+                    elif d['status'] == 'finished':
+                        emit_log(f"✅ Finished downloading: {d.get('info_dict', {}).get('title', 'unknown')}", "success")
 
                 ydl_opts = {
                     'format': 'bestaudio/best',
@@ -886,6 +746,7 @@ def index():
                     'quiet': True,
                     'no_warnings': True,
                     'progress_hooks': [progress_hook],
+                    'noplaylist': False,
                 }
 
                 stop_heartbeat = threading.Event()
@@ -895,17 +756,30 @@ def index():
                 heartbeat_thread.start()
 
                 try:
+                    initial_files = set(os.listdir(user_dirs['download']))
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                         info_dict = ydl.extract_info(url, download=True)
-                        downloaded_filename = os.path.splitext(ydl.prepare_filename(info_dict))[0] + '.mp3'
-                        if os.path.exists(downloaded_filename):
-                            downloaded_files = [os.path.basename(downloaded_filename)]
-                            emit_log(f"✅ Downloaded {os.path.basename(downloaded_filename)} successfully!", "success")
-                            thread = threading.Thread(target=process_thread_target, args=(downloaded_files,))
-                            thread.daemon = True
-                            thread.start()
+                        downloaded_files = []
+                        if 'entries' in info_dict:
+                            emit_log(f"📥 Detected playlist with {len(info_dict['entries'])} videos", "info")
+                            for entry in info_dict['entries']:
+                                if entry:
+                                    filename = os.path.splitext(ydl.prepare_filename(entry))[0] + '.mp3'
+                                    if os.path.exists(filename):
+                                        downloaded_files.append(os.path.basename(filename))
                         else:
-                            raise DownloadError("Downloaded file not found")
+                            filename = os.path.splitext(ydl.prepare_filename(info_dict))[0] + '.mp3'
+                            if os.path.exists(filename):
+                                downloaded_files.append(os.path.basename(filename))
+
+                        final_files = set(os.listdir(user_dirs['download']))
+                        downloaded_files = [f for f in final_files - initial_files if f.endswith('.mp3')]
+                        if not downloaded_files:
+                            raise DownloadError("No files were downloaded")
+                        emit_log(f"✅ Downloaded {len(downloaded_files)} file(s) successfully: {', '.join(downloaded_files)}", "success")
+                        thread = threading.Thread(target=process_thread_target, args=(downloaded_files,))
+                        thread.daemon = True
+                        thread.start()
                 finally:
                     stop_heartbeat.set()
 
@@ -929,14 +803,12 @@ def index():
 
 @app.before_request
 def ensure_session_id():
-    """Generate session ID for each user"""
     if 'session_id' not in session:
         session['session_id'] = str(uuid.uuid4())
         session.permanent = True
         logger.info(f"New session created: {session['session_id']}")
 
 def cleanup_old_sessions():
-    """Clean up old session directories"""
     base_dir = Config.BASE_DIR
     if not os.path.exists(base_dir):
         return

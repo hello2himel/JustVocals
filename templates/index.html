@@ -1043,13 +1043,13 @@
                 </div>
 
                 <div class="donation-section">
-    <h3>Support Our Open Source Project</h3>
-    <p>Vocals is a Free and Open Source Software (FOSS) project, proudly maintained by hobbyist developers like @hello2himel. We dedicate our time and resources to provide this tool for free, but hosting, development, and ongoing improvements come with costs.</p>
-    <p>If you find Vocals useful, please consider supporting our work with a small donation. Your contribution helps keep this project alive and allows us to continue building and improving. Every bit helps!</p>
-    <a href="#" id="donate-button" class="donate-button-large" target="_blank">
-        <i class="ri-heart-fill"></i> Support by donating
-    </a>
-</div>
+                    <h3>Support Our Open Source Project</h3>
+                    <p>JustVocals is a Free and Open Source Software (FOSS) project, proudly maintained by hobbyist developers like @hello2himel. We dedicate our time and resources to provide this tool for free, but hosting, development, and ongoing improvements come with costs.</p>
+                    <p>If you find JustVocals useful, please consider supporting our work with a small donation. Your contribution helps keep this project alive and allows us to continue building and improving. Every bit helps!</p>
+                    <a href="#" id="donate-button" class="donate-button-large" target="_blank">
+                        <i class="ri-heart-fill"></i> Support by donating
+                    </a>
+                </div>
             </div>
         </section>
     </main>
@@ -1268,7 +1268,7 @@
         }
 
         function updateSilenceLenValue(val) {
-            document.getElementById('silence_len-value').textContent = val;
+            document.getElementById('silence-len-value').textContent = val;
         }
 
         function updateKeepSilenceValue(val) {
@@ -1481,15 +1481,13 @@
                 return;
             }
 
-            if (linkValue) {
-                if (!youtubeUrlRegex.test(linkValue)) {
-                    showMessage('Please provide a valid YouTube URL.', 'error');
-                    linkInput.classList.add('error-border');
-                    return;
-                }
-                linkInput.setAttribute('name', 'link');
-                fileInput.removeAttribute('name');
-            } else if (currentFile) {
+            if (linkValue && !youtubeUrlRegex.test(linkValue)) {
+                showMessage('Please provide a valid YouTube URL.', 'error');
+                linkInput.classList.add('error-border');
+                return;
+            }
+
+            if (currentFile) {
                 const validTypes = ['audio/mpeg', 'audio/wav'];
                 const maxSize = 100 * 1024 * 1024;
                 if (!validTypes.includes(currentFile.type)) {
@@ -1515,6 +1513,9 @@
                 isFileSelectedValid = true;
                 fileInput.setAttribute('name', 'audio_file');
                 linkInput.removeAttribute('name');
+            } else {
+                fileInput.removeAttribute('name');
+                linkInput.setAttribute('name', 'link');
             }
 
             isSubmitting = true;
@@ -1526,30 +1527,24 @@
             setActiveStep(2);
             logContainer.innerHTML = '<div class="log-entry muted">Starting processing...</div>';
 
-            const minSilenceLenInput = document.getElementById('min_silence_len');
-            const originalMinSilenceLenValue = minSilenceLenInput.value;
-            minSilenceLenInput.value = parseFloat(originalMinSilenceLenValue) * 1000;
-
-            fetch('/', {
-                method: 'POST',
-                body: new FormData(form)
-            }).then(response => {
-                minSilenceLenInput.value = originalMinSilenceLenValue;
-                if (!response.ok) {
-                    const contentType = response.headers.get("content-type");
-                    if (contentType && contentType.indexOf("application/json") !== -1) {
-                        return response.json().then(errorData => {
-                            throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
-                        });
-                    } else {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
+            // Prepare form data for SocketIO
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => {
+                if (key === 'min_silence_len') {
+                    // Convert seconds to milliseconds for backend
+                    data[key] = parseFloat(value) * 1000;
+                } else {
+                    data[key] = value;
                 }
-            }).catch(err => {
-                console.error('Submission fetch error:', err);
-                socket.emit('error', { message: err.message || 'Submission failed. Please try again.' });
-                minSilenceLenInput.value = originalMinSilenceLenValue;
             });
+
+            // If a file is selected, add it to the data object
+            if (currentFile) {
+                data['audio_file'] = currentFile;
+            }
+
+            socket.emit('process_form', data);
         });
 
         // Abort button functionality

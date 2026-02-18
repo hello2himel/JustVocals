@@ -831,6 +831,84 @@
         }
 
         /* Donation section specific styles */
+        /* Queue Section */
+        .queue-section {
+            margin-top: 16px;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 16px;
+            background: rgba(0,0,0,0.02);
+        }
+
+        [data-theme="dark"] .queue-section {
+            background: rgba(255,255,255,0.02);
+        }
+
+        .queue-section h4 {
+            margin-bottom: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .queue-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .queue-list li {
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--border);
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .queue-list li:last-child {
+            border-bottom: none;
+        }
+
+        .queue-badge {
+            background: var(--accent);
+            color: white;
+            font-size: 11px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 9999px;
+            min-width: 20px;
+            text-align: center;
+        }
+
+        .queue-empty {
+            color: var(--text-light);
+            font-size: 13px;
+            font-style: italic;
+        }
+
+        .add-to-queue-btn {
+            background: #3498db;
+            color: white;
+            border: 1px solid #3498db;
+            padding: 12px 24px;
+            border-radius: var(--radius);
+            font-size: 15px;
+            font-weight: 600;
+            width: 100%;
+            transition: all 0.2s ease;
+            display: none;
+            cursor: pointer;
+            margin-top: 8px;
+        }
+
+        .add-to-queue-btn:hover {
+            background: #2980b9;
+            border-color: #2980b9;
+        }
+
         .donation-section {
             margin-top: 30px;
             padding: 20px;
@@ -997,6 +1075,9 @@
                     </details>
 
                     <button type="submit" id="main-btn" class="primary">Extract Vocals</button>
+                    <button type="button" id="add-to-queue-btn" class="add-to-queue-btn">
+                        <i class="ri-add-line"></i> Add to Queue
+                    </button>
                 </form>
             </div>
         </section>
@@ -1021,6 +1102,12 @@
                 </div>
                 <div class="log-container" id="log-container">
                     <div class="log-entry muted">Waiting for processing to start...</div>
+                </div>
+                <div class="queue-section" id="queue-section" style="display:none;">
+                    <h4><i class="ri-list-ordered"></i> Queue</h4>
+                    <ul class="queue-list" id="queue-list">
+                        <li class="queue-empty">No items in queue</li>
+                    </ul>
                 </div>
             </div>
         </section>
@@ -1071,6 +1158,8 @@
         const MAX_LOG_ENTRIES = 100; // Limit to prevent DOM bloat
         // Store session ID from template
         const sessionId = "{{ session_id | safe }}";
+        // All processed files accumulated across queue jobs
+        let allProcessedFiles = [];
 
         // Update donate button URL with source and session_id
         function updateDonateButton() {
@@ -1172,6 +1261,11 @@
                 linkInput.classList.remove('error-border');
                 fileInput.classList.remove('error-border');
             }
+        }
+
+        function resetAndGoToStep1() {
+            allProcessedFiles = [];
+            setActiveStep(1);
         }
 
         // File handling
@@ -1298,10 +1392,13 @@
         const socket = io();
         const form = document.getElementById('main-form');
         const mainBtn = document.getElementById('main-btn');
+        const addToQueueBtn = document.getElementById('add-to-queue-btn');
         const logContainer = document.getElementById('log-container');
         const resultsContainer = document.getElementById('results-container');
         const progressBar = document.getElementById('progress-bar');
         const processingSpinner = document.getElementById('processing-spinner');
+        const queueSection = document.getElementById('queue-section');
+        const queueList = document.getElementById('queue-list');
 
         let isSubmitting = false;
 
@@ -1376,64 +1473,90 @@
 
         socket.on('processing_complete', function(data) {
             console.log("Processing complete event received!", data);
-            isSubmitting = false;
-            isProcessingActive = false;
-            mainBtn.disabled = false;
-            mainBtn.innerHTML = 'Extract Vocals';
-            processingSpinner.style.display = 'none';
-            progressBar.style.display = 'none';
-            abortButton.style.display = 'none';
-            hideMessage();
 
+            // Accumulate processed files across queue jobs
             if (data.files && data.files.length) {
-                console.log("Files found in processing_complete data:", data.files);
-                let filesHtml = data.files.map(file => `
-                    <div class="audio-container-item">
-                        <div class="audio-item-header">
-                            <h4>${file}</h4>
-                            <a href="/final_output/${encodeURIComponent(file)}" class="download-btn" download>
-                                <i class="ri-download-line" aria-hidden="true"></i> <span>Download</span>
-                            </a>
-                        </div>
-                        <audio controls preload="metadata">
-                            <source src="/final_output/${encodeURIComponent(file)}" type="audio/mpeg">
-                        </audio>
-                    </div>
-                `).join('');
-
-                if (data.files.length > 1) {
-                    downloadAllButton.style.display = 'inline-flex';
-                    downloadAllButton.href = `/download-all?files=${encodeURIComponent(JSON.stringify(data.files))}`;
-                } else {
-                    downloadAllButton.style.display = 'none';
-                }
-
-                const donationSectionElement = document.querySelector('#step-3 .donation-section');
-                resultsContainer.innerHTML = `
-                    <p class="success">Extracted vocals from ${data.files.length} file(s)</p>
-                    ${filesHtml}
-                    <button onclick="setActiveStep(1)" class="primary" style="margin-top: 20px;">Process Another</button>
-                `;
-                if (donationSectionElement) {
-                    resultsContainer.appendChild(donationSectionElement);
-                }
-                setActiveStep(3);
-                showMessage('Processing complete! Your vocals are ready.', 'success');
-                history.pushState({step: 3, files: data.files}, 'Results', `?step=3&files=${encodeURIComponent(JSON.stringify(data.files))}`);
-                logQueue.push({ message: 'Processing completed successfully', type: 'success' });
-                renderLogs();
-            } else {
-                console.log("No files or empty files array received in processing_complete:", data);
-                if (data.aborted) {
-                    logContainer.innerHTML = '<div class="log-entry warning">Processing aborted by user.</div>';
-                    showMessage('Processing was aborted.', 'warning');
-                } else {
-                    logContainer.innerHTML = '<div class="log-entry error">No files processed.</div>';
-                    showMessage('Processing completed but no output files were generated. Please try again.', 'error');
-                }
-                setActiveStep(1);
-                downloadAllButton.style.display = 'none';
+                allProcessedFiles = allProcessedFiles.concat(data.files);
             }
+
+            // Check if there are more items in the queue
+            socket.emit('get_queue_status');
+
+            // Wait for queue_update event to arrive before checking final state
+            setTimeout(() => {
+                const queueItems = queueList.querySelectorAll('li:not(.queue-empty)');
+                if (queueItems.length > 0) {
+                    // More items in queue, stay on step 2
+                    logQueue.push({ message: 'Current job complete, processing next in queue...', type: 'success' });
+                    renderLogs();
+                    return;
+                }
+
+                // No more queue items, show final results
+                isSubmitting = false;
+                isProcessingActive = false;
+                mainBtn.disabled = false;
+                mainBtn.innerHTML = 'Extract Vocals';
+                addToQueueBtn.style.display = 'none';
+                processingSpinner.style.display = 'none';
+                progressBar.style.display = 'none';
+                abortButton.style.display = 'none';
+                hideMessage();
+
+                const filesToShow = allProcessedFiles.length > 0 ? allProcessedFiles : (data.files || []);
+
+                if (filesToShow.length > 0) {
+                    console.log("Files to display:", filesToShow);
+                    let filesHtml = filesToShow.map(file => `
+                        <div class="audio-container-item">
+                            <div class="audio-item-header">
+                                <h4>${file}</h4>
+                                <a href="/final_output/${encodeURIComponent(file)}" class="download-btn" download>
+                                    <i class="ri-download-line" aria-hidden="true"></i> <span>Download</span>
+                                </a>
+                            </div>
+                            <audio controls preload="metadata">
+                                <source src="/final_output/${encodeURIComponent(file)}" type="audio/mpeg">
+                            </audio>
+                        </div>
+                    `).join('');
+
+                    if (filesToShow.length > 1) {
+                        downloadAllButton.style.display = 'inline-flex';
+                        downloadAllButton.href = `/download-all?files=${encodeURIComponent(JSON.stringify(filesToShow))}`;
+                    } else {
+                        downloadAllButton.style.display = 'none';
+                    }
+
+                    const donationSectionElement = document.querySelector('#step-3 .donation-section');
+                    resultsContainer.innerHTML = `
+                        <p class="success">Extracted vocals from ${filesToShow.length} file(s)</p>
+                        ${filesHtml}
+                        <button onclick="resetAndGoToStep1()" class="primary" style="margin-top: 20px;">Process Another</button>
+                    `;
+                    if (donationSectionElement) {
+                        resultsContainer.appendChild(donationSectionElement);
+                    }
+                    setActiveStep(3);
+                    showMessage('Processing complete! Your vocals are ready.', 'success');
+                    history.pushState({step: 3, files: filesToShow}, 'Results', `?step=3&files=${encodeURIComponent(JSON.stringify(filesToShow))}`);
+                    logQueue.push({ message: 'All processing completed successfully', type: 'success' });
+                    renderLogs();
+                    allProcessedFiles = [];
+                } else {
+                    console.log("No files processed:", data);
+                    if (data.aborted) {
+                        logContainer.innerHTML = '<div class="log-entry warning">Processing aborted by user.</div>';
+                        showMessage('Processing was aborted.', 'warning');
+                    } else {
+                        logContainer.innerHTML = '<div class="log-entry error">No files processed.</div>';
+                        showMessage('Processing completed but no output files were generated. Please try again.', 'error');
+                    }
+                    setActiveStep(1);
+                    downloadAllButton.style.display = 'none';
+                    allProcessedFiles = [];
+                }
+            }, 300);
         });
 
         socket.on('error', data => {
@@ -1442,9 +1565,11 @@
             isProcessingActive = false;
             mainBtn.disabled = false;
             mainBtn.innerHTML = 'Extract Vocals';
+            addToQueueBtn.style.display = 'none';
             processingSpinner.style.display = 'none';
             progressBar.style.display = 'none';
             abortButton.style.display = 'none';
+            queueSection.style.display = 'none';
             logContainer.innerHTML = `<div class="log-entry error">${data.message || 'An unknown error occurred.'}</div>`;
             setActiveStep(1);
             showMessage(data.message || 'An error occurred during processing.', 'error');
@@ -1452,6 +1577,29 @@
             fileInput.classList.remove('error-border');
             downloadAllButton.style.display = 'none';
             logQueue.push({ message: data.message || 'An error occurred during processing', type: 'error' });
+            renderLogs();
+        });
+
+        socket.on('queue_update', function(data) {
+            console.log("Queue update:", data);
+            if (data.queue && data.queue.length > 0) {
+                queueSection.style.display = 'block';
+                queueList.innerHTML = data.queue.map((item, i) => `
+                    <li>
+                        <span class="queue-badge">${i + 1}</span>
+                        <span>${item.name}</span>
+                    </li>
+                `).join('');
+            } else {
+                queueSection.style.display = 'none';
+                queueList.innerHTML = '<li class="queue-empty">No items in queue</li>';
+            }
+        });
+
+        socket.on('queued', function(data) {
+            console.log("Song queued at position:", data.position);
+            showMessage(`Added to queue (position ${data.position}). It will be processed after the current job.`, 'success');
+            logQueue.push({ message: `Song added to queue at position ${data.position}`, type: 'info' });
             renderLogs();
         });
 
@@ -1522,6 +1670,7 @@
             isProcessingActive = true;
             mainBtn.disabled = true;
             mainBtn.innerHTML = '<i class="ri-loader-4-line ri-spin"></i> Processing...';
+            addToQueueBtn.style.display = 'block';
             processingSpinner.style.display = 'inline-block';
             abortButton.style.display = 'inline-flex';
             setActiveStep(2);
@@ -1547,6 +1696,49 @@
             socket.emit('process_form', data);
         });
 
+        // Add to Queue button: go back to step 1 to add another song while processing continues
+        addToQueueBtn.addEventListener('click', () => {
+            // Reset form inputs for new entry
+            linkInput.value = '';
+            fileInput.value = '';
+            fileInfo.textContent = '';
+            isFileSelectedValid = false;
+            linkInput.setAttribute('name', 'link');
+            fileInput.removeAttribute('name');
+            linkInput.classList.remove('error-border');
+            fileInput.classList.remove('error-border');
+            hideMessage();
+
+            // Show step 1 content while keeping processing active
+            stepContents.forEach((content, i) => {
+                content.classList.toggle('active', i === 0);
+            });
+
+            // Update step indicators to show step 1 as active but step 2 still in progress
+            steps.forEach((step, i) => {
+                step.classList.remove('active', 'completed');
+                step.innerHTML = '';
+                const textSpan = document.createElement('span');
+                textSpan.textContent = stepLabels[i];
+                const icon = document.createElement('i');
+                if (i === 0) {
+                    step.classList.add('active');
+                    icon.className = `step-icon ${stepIcons[i]}`;
+                } else {
+                    icon.className = `step-icon ${stepIcons[i].replace(' ri-spin', '')}`;
+                }
+                step.appendChild(icon);
+                step.appendChild(textSpan);
+            });
+
+            // Re-enable form for new submission
+            isSubmitting = false;
+            mainBtn.disabled = false;
+            mainBtn.innerHTML = 'Add to Queue';
+
+            showMessage('Add another song — it will be queued and processed after the current one.', 'success');
+        });
+
         // Abort button functionality
         const confirmationDialog = document.getElementById('confirmation-dialog');
         const confirmationOverlay = document.getElementById('confirmation-overlay');
@@ -1564,14 +1756,17 @@
             isProcessingActive = false;
             mainBtn.disabled = false;
             mainBtn.innerHTML = 'Extract Vocals';
+            addToQueueBtn.style.display = 'none';
             processingSpinner.style.display = 'none';
             progressBar.style.display = 'none';
             abortButton.style.display = 'none';
+            queueSection.style.display = 'none';
             setActiveStep(1);
             hideMessage();
             showMessage('Processing aborted successfully.', 'warning');
             confirmationDialog.style.display = 'none';
             confirmationOverlay.style.display = 'none';
+            allProcessedFiles = [];
             logQueue.push({ message: 'Processing aborted by user', type: 'warning' });
             renderLogs();
         });

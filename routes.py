@@ -108,8 +108,10 @@ def _enqueue_job(socketio, session_id, job):
         thread.daemon = True
         thread.start()
     else:
-        emit_log(socketio, f"📋 Added to queue (position {len(sq['queue'])})", "info", sid=session_id)
-        socketio.emit('queued', {'position': len(sq['queue'])}, room=session_id)
+        # Position includes the currently processing job
+        position = len(sq['queue'])
+        emit_log(socketio, f"📋 Added to queue (position {position})", "info", sid=session_id)
+        socketio.emit('queued', {'position': position}, room=session_id)
 
 
 def register_routes(app, socketio):
@@ -414,9 +416,10 @@ def register_routes(app, socketio):
 
     @app.route('/', methods=['GET', 'POST'])
     def index():
-        session['session_id'] = str(uuid.uuid4())
+        if not session.get('session_id'):
+            session['session_id'] = str(uuid.uuid4())
         session.permanent = True
-        logger.info(f"New session created: {session['session_id']}")
+        logger.info(f"Session active: {session['session_id']}")
 
         form = ProcessForm()
         processed_files = []

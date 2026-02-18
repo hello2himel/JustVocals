@@ -1263,6 +1263,11 @@
             }
         }
 
+        function resetAndGoToStep1() {
+            allProcessedFiles = [];
+            setActiveStep(1);
+        }
+
         // File handling
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('audio_file');
@@ -1477,7 +1482,7 @@
             // Check if there are more items in the queue
             socket.emit('get_queue_status');
 
-            // Short delay to let queue_update arrive before deciding final state
+            // Wait for queue_update event to arrive before checking final state
             setTimeout(() => {
                 const queueItems = queueList.querySelectorAll('li:not(.queue-empty)');
                 if (queueItems.length > 0) {
@@ -1527,7 +1532,7 @@
                     resultsContainer.innerHTML = `
                         <p class="success">Extracted vocals from ${filesToShow.length} file(s)</p>
                         ${filesHtml}
-                        <button onclick="setActiveStep(1); allProcessedFiles = [];" class="primary" style="margin-top: 20px;">Process Another</button>
+                        <button onclick="resetAndGoToStep1()" class="primary" style="margin-top: 20px;">Process Another</button>
                     `;
                     if (donationSectionElement) {
                         resultsContainer.appendChild(donationSectionElement);

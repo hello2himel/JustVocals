@@ -22,6 +22,8 @@ class Config:
         'http://192.168.0.101:5000',
     ]
     LOG_UPDATE_INTERVAL = float(os.environ.get('LOG_UPDATE_INTERVAL', 2.0))
+    COOKIES_FILE = os.environ.get('COOKIES_FILE', '')
+    COOKIES_FROM_BROWSER = os.environ.get('COOKIES_FROM_BROWSER', '')
 
 
 # Setup logging

@@ -352,6 +352,11 @@ def register_routes(app, socketio):
                     'noplaylist': False,
                 }
 
+                if Config.COOKIES_FILE and os.path.isfile(Config.COOKIES_FILE):
+                    ydl_opts['cookiefile'] = Config.COOKIES_FILE
+                elif Config.COOKIES_FROM_BROWSER:
+                    ydl_opts['cookiesfrombrowser'] = (Config.COOKIES_FROM_BROWSER,)
+
                 stop_heartbeat = threading.Event()
                 heartbeat_thread = threading.Thread(target=progress_heartbeat,
                                                     args=(socketio, "YouTube download", stop_heartbeat, session_id))

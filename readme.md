@@ -41,6 +41,26 @@ python main.py
 
 Then open your browser at: `http://127.0.0.1:5000`
 
+### 🍪 YouTube Cookie Authentication
+
+If YouTube blocks downloads with a bot detection error, you can provide cookies to authenticate requests. Set one of the following environment variables before running the app:
+
+**Option 1: Cookies file** (Netscape-format `cookies.txt`)
+
+```bash
+export COOKIES_FILE=/path/to/cookies.txt
+python main.py
+```
+
+**Option 2: Cookies from browser** (automatically extract from a local browser)
+
+```bash
+export COOKIES_FROM_BROWSER=firefox   # or chrome, edge, opera, etc.
+python main.py
+```
+
+> See the [yt-dlp wiki](https://github.com/yt-dlp/yt-dlp/wiki/FAQ#how-do-i-pass-cookies-to-yt-dlp) for more details on exporting cookies.
+
 ---
 
 ## 🧠 How It Works
